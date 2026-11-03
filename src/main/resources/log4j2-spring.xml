@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Les niveaux se changent sans modifier ce fichier, par ex. dans application.yml ou en ligne de commande :
+    logging.level.io.github.wallet=DEBUG            tout le wallet
+    logging.level.io.github.wallet.http.in=DEBUG    requêtes entrantes avec en-têtes et corps
+    logging.level.io.github.wallet.http.out=DEBUG   appels aux verifiers avec en-têtes et corps
+-->
+<Configuration status="WARN">
+    <Properties>
+        <Property name="PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%15.15t] [%X{requestId}] %-40.40c{1.} : %m%n%throwable</Property>
+    </Properties>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT" follow="true">
+            <PatternLayout pattern="${PATTERN}"/>
+        </Console>
+        <RollingFile name="File" fileName="${sys:LOG_PATH:-logs}/wallet.log"
+                     filePattern="${sys:LOG_PATH:-logs}/wallet-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="7"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Logger name="io.github.wallet" level="INFO"/>
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Root>
+    </Loggers>
+</Configuration>

@@ -1,0 +1,14 @@
+meta {
+  name: 03 Présentation
+  seq: 3
+}
+
+docs {
+  Réponse à un verifier OpenID4VP.
+
+  Avec `requestUri` vide, *Résoudre* fabrique une requête de démo **non signée** (`redirect_uri:`, `direct_post`)
+  qui demande `family_name` du PID SD-JWT et `age_over_18` du mDL. Comme aucun verifier n'écoute sur
+  `demoResponseUri`, `accept` / `decline` répondent **502** : le journal montre quand même la requête envoyée.
+
+  Pour un vrai verifier : coller son `openid4vp://…` (contenu du QR code) dans la variable `requestUri`.
+}

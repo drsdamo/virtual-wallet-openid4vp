@@ -1,0 +1,16 @@
+meta {
+  name: Journal d'une présentation
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}/exchanges
+  body: none
+  auth: none
+}
+
+docs {
+  Appels HTTP de la présentation `presentationId` : `method`, `url`, en-têtes, corps (JAR, `vp_token`, JWE…),
+  `status`, réponse, durée, `error`. Disponible même après la réponse.
+}

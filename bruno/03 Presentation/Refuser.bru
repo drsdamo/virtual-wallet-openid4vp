@@ -1,0 +1,33 @@
+meta {
+  name: Refuser
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}/decline
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  // Une présentation n'est répondue qu'une fois : si la courante l'est déjà, en résoudre une nouvelle.
+  if (!bru.getVar("presentationId") || bru.getVar("presentationAnswered")) {
+    await bru.runRequest("03 Presentation/Resoudre une requete");
+  }
+}
+
+script:post-response {
+  if (res.status !== 404) bru.setVar("presentationAnswered", true);
+}
+
+tests {
+  test("réponse envoyée (502 = verifier injoignable, attendu avec la requête de démo)", () => {
+    expect([200, 502]).to.include(res.status);
+  });
+}
+
+docs {
+  Envoie `error=access_denied` au verifier. Une présentation n'est répondue qu'une fois : si la courante l'est déjà,
+  le pre-request relance *Résoudre une requête* automatiquement.
+}

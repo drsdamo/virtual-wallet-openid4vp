@@ -1,0 +1,15 @@
+meta {
+  name: Lister les défauts
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/presentations/faults
+  body: none
+  auth: none
+}
+
+docs {
+  `[{ name, format, description }]` ; `format` = credential concerné (`null` = tous).
+}

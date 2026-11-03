@@ -1,0 +1,19 @@
+meta {
+  name: 1. Récupérer l'IACA
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/trust/iaca.pem
+  body: none
+  auth: none
+}
+
+script:post-response {
+  bru.setVar("iacaPem", res.body);
+}
+
+docs {
+  Même requête que *01 Infos / Racine de confiance IACA*.
+}

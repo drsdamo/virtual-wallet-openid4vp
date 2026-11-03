@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Wallet</title>
+<style>
+  :root { --bg:#f6f7f9; --fg:#1d2433; --muted:#5b6475; --card:#fff; --line:#dde1e8; --accent:#2457d6; --ok:#1a7f45; --ko:#b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14171d; --fg:#e7eaf0; --muted:#9aa3b2; --card:#1c2029; --line:#2c3240; --accent:#7aa2ff; --ok:#4cc38a; --ko:#ff6b5e; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:860px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:0 0 12px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  textarea { width:100%; min-height:90px; font:13px ui-monospace, monospace; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+  button { font:inherit; padding:8px 14px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; margin:8px 8px 0 0; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 12px; margin:0; } dt { color:var(--muted); } dd { margin:0; word-break:break-all; }
+  .q { border-top:1px solid var(--line); padding:10px 0; } .q:first-child { border-top:0; }
+  .ok { color:var(--ok); } .ko { color:var(--ko); }
+  code { font:13px ui-monospace, monospace; }
+  pre { white-space:pre-wrap; word-break:break-all; font:12px ui-monospace, monospace; margin:0; }
+  .hidden { display:none; }
+  input, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); min-width:0; }
+  .row { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:1fr 1fr 160px auto; gap:8px; align-items:center; margin-top:8px; }
+  .claims { width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
+  .claims td { padding:4px 4px; border-top:1px solid var(--line); vertical-align:middle; }
+  .claims input, .claims select { width:100%; }
+  .claims button, .grid button { margin:0; padding:6px 10px; }
+  .danger { color:var(--ko); }
+  .err { color:var(--ko); margin:6px 0 0; min-height:1em; }
+  @media (max-width:640px) { .grid { grid-template-columns:1fr; } .claims td:nth-child(2), .claims td:nth-child(4) { display:none; } }
+  .fault { display:block; margin:4px 0; } .fault code { margin-right:6px; }
+  .ex { border-top:1px solid var(--line); padding:8px 0; } .ex summary { cursor:pointer; }
+  .ex pre { background:var(--bg); padding:8px; border-radius:6px; margin:6px 0; max-height:320px; overflow:auto; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Virtual Wallet</h1>
+  <p class="sub">Wallet de test OpenID4VP. Colle la requête du verifier (<code>openid4vp://…</code>, contenu du QR code).
+    Racine de confiance à installer côté verifier : <a href="/api/trust/iaca.pem">iaca.pem</a>.</p>
+
+  <section>
+    <h2>Requête d'autorisation</h2>
+    <textarea id="uri" placeholder="openid4vp://?client_id=…&request_uri=…"></textarea>
+    <label class="row">Identité présentée
+      <select id="identity-select"><option value="">Automatique (première qui répond à tout)</option></select></label>
+    <button class="primary" id="resolve">Résoudre</button>
+  </section>
+
+  <section id="request" class="hidden">
+    <h2>Demande du verifier</h2>
+    <div id="request-body"></div>
+    <details id="faults-box" style="margin-top:12px"><summary>Injecter des défauts (test de robustesse du verifier)</summary>
+      <div id="faults"></div></details>
+    <button class="primary" id="accept">Partager</button>
+    <button id="decline">Refuser</button>
+    <button id="report" class="hidden">Renvoyer l'erreur au verifier</button>
+  </section>
+
+  <section id="result" class="hidden">
+    <h2>Résultat</h2>
+    <div id="result-body"></div>
+  </section>
+
+  <section id="log" class="hidden">
+    <h2>Échanges HTTP avec le verifier</h2>
+    <div id="log-body"></div>
+  </section>
+
+  <section>
+    <h2>Identités</h2>
+    <div id="identities">…</div>
+    <details class="q"><summary><strong>Ajouter une identité</strong></summary>
+      <form id="new-identity" class="grid">
+        <input name="familyName" placeholder="Nom" required>
+        <input name="givenName" placeholder="Prénom" required>
+        <input name="birthDate" type="date" required>
+        <button class="primary">Créer</button>
+      </form>
+      <p class="err" id="new-identity-err"></p>
+    </details>
+  </section>
+
+  <section>
+    <h2>Credentials du wallet</h2>
+    <div id="credentials">…</div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let current = null;
+
+async function call(method, url, body) {
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  const text = await res.text();
+  let data; try { data = JSON.parse(text); } catch { data = { error: text }; }
+  if (!res.ok) throw new Error(data.error || data.detail || res.status);
+  return data;
+}
+
+function showResult(html) { $('result').classList.remove('hidden'); $('result-body').innerHTML = html; }
+
+// Décode les segments JWT trouvés dans un corps, pour rendre lisibles les JAR et les KB-JWT.
+function b64url(s) { try { return decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/')))); } catch { return null; } }
+function explain(body) {
+  if (!body) return '';
+  const jwts = body.match(/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g) || [];
+  const decoded = jwts.slice(0, 5).map(j => { const [h, p] = j.split('.'); const hh = b64url(h), pp = b64url(p);
+    try { return `JWT header: ${JSON.stringify(JSON.parse(hh), null, 2)}\nJWT payload: ${JSON.stringify(JSON.parse(pp), null, 2)}`; } catch { return ''; } });
+  let form = '';
+  if (/^[\w.-]+=/.test(body) && !body.includes('\n')) {
+    form = body.split('&').map(kv => { const [k, v=''] = kv.split('='); return `${decodeURIComponent(k)} = ${decodeURIComponent(v.replace(/\+/g,' '))}`; }).join('\n');
+  }
+  return [form, ...decoded].filter(Boolean).join('\n\n');
+}
+function showLog(exchanges) {
+  if (!exchanges || !exchanges.length) return;
+  $('log').classList.remove('hidden');
+  $('log-body').innerHTML = exchanges.map(e => `
+    <details class="ex"><summary><code>${esc(e.method)}</code> ${esc(e.url)} → <span class="${e.status && e.status < 400 ? 'ok' : 'ko'}">${esc(e.status ?? e.error)}</span> · ${e.durationMs} ms</summary>
+      ${e.requestBody ? `<div>Requête</div><pre>${esc(explain(e.requestBody) || e.requestBody)}</pre>` : ''}
+      ${e.responseBody ? `<div>Réponse</div><pre>${esc(explain(e.responseBody) || e.responseBody)}</pre>` : ''}
+      ${e.error ? `<pre class="ko">${esc(e.error)}</pre>` : ''}
+    </details>`).join('');
+}
+
+let faults = [];
+call('GET', '/api/presentations/faults').then(list => { faults = list; });
+function renderFaults(formats) {
+  $('faults').innerHTML = faults.filter(f => !f.format || formats.includes(f.format)).map(f => `
+    <label class="fault"><input type="checkbox" value="${esc(f.name)}"> <code>${esc(f.name)}</code>${esc(f.description)}</label>`).join('');
+}
+
+$('resolve').onclick = async () => {
+  $('result').classList.add('hidden');
+  try {
+    current = await call('POST', '/api/presentations', { requestUri: $('uri').value, identityId: $('identity-select').value || null });
+    $('request').classList.remove('hidden');
+    const valid = current.valid;
+    $('accept').classList.toggle('hidden', !valid);
+    $('decline').classList.toggle('hidden', !valid);
+    $('report').classList.toggle('hidden', valid || !current.dispatchable);
+    $('accept').disabled = !valid || !current.queries.some(q => q.credentialId);
+    $('faults-box').classList.toggle('hidden', !valid);
+    showLog(current.exchanges);
+    if (!valid) {
+      $('request-body').innerHTML = `<p class="ko">Requête invalide</p><pre>${esc(current.error)}</pre>`;
+      return;
+    }
+    renderFaults(current.queries.filter(q => q.credentialId).map(q => q.format));
+    const v = current.verifier;
+    $('request-body').innerHTML = `
+      <dl>
+        <dt>client_id</dt><dd><code>${esc(v.clientId)}</code></dd>
+        <dt>Nom</dt><dd>${esc(v.legalName || '—')}</dd>
+        <dt>Réponse</dt><dd>${esc(v.responseMode)}${v.encryptedResponse ? ' (chiffrée)' : ''} → <code>${esc(v.responseUri)}</code></dd>
+        <dt>nonce</dt><dd><code>${esc(current.nonce)}</code></dd>
+      </dl>
+      <h2 style="margin-top:16px">Credentials demandés</h2>
+      ${current.queries.map(q => `
+        <div class="q">
+          <strong>${esc(q.queryId)}</strong> · ${esc(q.format)} · ${esc(q.requestedTypes.join(', ') || 'tout type')}<br>
+          ${q.credentialId
+            ? `<span class="ok">✓ ${esc(q.credentialId)}</span> — divulgué : ${q.disclosedClaims ? q.disclosedClaims.map(p => `<code>${esc(JSON.stringify(p))}</code>`).join(' ') : 'tout le credential'}`
+            : `<span class="ko">✗ ${esc(q.reason)}</span>`}
+        </div>`).join('')}`;
+  } catch (e) {
+    $('request').classList.add('hidden');
+    showResult(`<p class="ko">${esc(e.message)}</p>`);
+  }
+};
+
+async function answer(action) {
+  const selected = [...document.querySelectorAll('#faults input:checked')].map(i => i.value);
+  try {
+    const r = await call('POST', `/api/presentations/${current.id}/${action}`, action === 'accept' ? { faults: selected } : undefined);
+    $('request').classList.add('hidden');
+    const injected = r.faults && r.faults.length ? `<p>Défauts injectés : ${r.faults.map(f => `<code>${esc(f)}</code>`).join(' ')}</p>` : '';
+    showResult(`<p class="${r.accepted ? 'ok' : 'ko'}">${r.accepted ? 'Réponse acceptée par le verifier' : 'Réponse rejetée par le verifier'}</p>${injected}
+      ${r.redirectUri ? `<p>Redirection : <a href="${esc(r.redirectUri)}" target="_blank" rel="noopener">${esc(r.redirectUri)}</a></p>` : ''}`);
+    showLog(r.exchanges);
+  } catch (e) {
+    showResult(`<p class="ko">${esc(e.message)}</p>`);
+    call('GET', `/api/presentations/${current.id}/exchanges`).then(showLog).catch(() => {});
+  }
+}
+$('accept').onclick = () => answer('accept');
+$('decline').onclick = () => answer('decline');
+$('report').onclick = () => answer('report-error');
+
+let identities = [];
+function loadCredentials() {
+  call('GET', '/api/credentials').then(list => {
+    const names = Object.fromEntries(identities.map(v => [v.identity.id, `${v.identity.givenName} ${v.identity.familyName}`]));
+    $('credentials').innerHTML = list.map(c => `
+      <details class="q"><summary><strong>${esc(names[c.id.split(':')[0]] || '')}</strong> · ${esc(c.id.split(':')[1])} · <code>${esc(c.type)}</code></summary>
+        <pre>${esc(JSON.stringify(c.claims, null, 2))}</pre></details>`).join('');
+  }).catch(e => $('credentials').textContent = e.message);
+}
+
+const TYPES = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE'], SCOPES = ['ALL', 'SD_JWT', 'MDOC'];
+const opts = (list, sel) => list.map(o => `<option ${o === sel ? 'selected' : ''}>${o}</option>`).join('');
+function claimRow(idn, c) {
+  return `<tr data-claim="${esc(c ? c.id : '')}">
+    <td><input name="name" value="${esc(c ? c.name : '')}" placeholder="nom (ex. address.locality)"></td>
+    <td><select name="type">${opts(TYPES, c ? c.type : 'STRING')}</select></td>
+    <td><input name="value" value="${esc(c ? c.value : '')}" placeholder="valeur"></td>
+    <td><select name="scope">${opts(SCOPES, c ? c.scope : 'ALL')}</select></td>
+    <td style="white-space:nowrap">${c
+      ? `<button data-act="save-claim">Enregistrer</button> <button class="danger" data-act="del-claim">✕</button>`
+      : `<button class="primary" data-act="add-claim">Ajouter</button>`}</td></tr>`;
+}
+function renderIdentities() {
+  $('identities').innerHTML = identities.map(({ identity: i }) => `
+    <details class="q" data-identity="${esc(i.id)}"><summary><strong>${esc(i.givenName)} ${esc(i.familyName)}</strong> · né(e) le ${esc(i.birthDate)} · ${i.claims.length} claims</summary>
+      <form class="grid" data-act="save-identity">
+        <input name="familyName" value="${esc(i.familyName)}" required>
+        <input name="givenName" value="${esc(i.givenName)}" required>
+        <input name="birthDate" type="date" value="${esc(i.birthDate)}" required>
+        <span><button>Enregistrer</button> <button type="button" class="danger" data-act="del-identity">Supprimer</button></span>
+      </form>
+      <table class="claims"><tbody>${i.claims.map(c => claimRow(i, c)).join('')}${claimRow(i, null)}</tbody></table>
+      <p class="err"></p>
+    </details>`).join('') || '<p>Aucune identité.</p>';
+  $('identity-select').innerHTML = '<option value="">Automatique (première qui répond à tout)</option>' +
+    identities.map(({ identity: i }) => `<option value="${esc(i.id)}">${esc(i.givenName)} ${esc(i.familyName)}</option>`).join('');
+}
+async function loadIdentities(open) {
+  identities = await call('GET', '/api/identities');
+  renderIdentities();
+  if (open) { const d = document.querySelector(`[data-identity="${open}"]`); if (d) d.open = true; }
+  loadCredentials();
+}
+const formData = (el) => Object.fromEntries([...el.querySelectorAll('input, select')].map(i => [i.name, i.value]));
+
+$('identities').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-act]'); if (!btn) return;
+  const box = btn.closest('[data-identity]'), id = box.dataset.identity, row = btn.closest('tr'), err = box.querySelector('.err');
+  err.textContent = '';
+  try {
+    switch (btn.dataset.act) {
+      case 'add-claim': await call('POST', `/api/identities/${id}/claims`, formData(row)); break;
+      case 'save-claim': await call('PUT', `/api/identities/${id}/claims/${row.dataset.claim}`, formData(row)); break;
+      case 'del-claim': await call('DELETE', `/api/identities/${id}/claims/${row.dataset.claim}`); break;
+      case 'del-identity': await call('DELETE', `/api/identities/${id}`); break;
+    }
+    await loadIdentities(btn.dataset.act === 'del-identity' ? null : id);
+  } catch (e) { err.textContent = e.message; }
+});
+$('identities').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const box = ev.target.closest('[data-identity]'), err = box.querySelector('.err');
+  try { await call('PUT', `/api/identities/${box.dataset.identity}`, formData(ev.target)); await loadIdentities(box.dataset.identity); }
+  catch (e) { err.textContent = e.message; }
+});
+$('new-identity').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  try { const v = await call('POST', '/api/identities', formData(ev.target)); ev.target.reset(); await loadIdentities(v.identity.id); }
+  catch (e) { $('new-identity-err').textContent = e.message; }
+});
+loadIdentities();
+
+const fromQuery = new URLSearchParams(location.search).get('request');
+if (fromQuery) { $('uri').value = fromQuery; $('resolve').click(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+meta {
+  name: 05 Bout en bout avec le verifier EUDI
+  seq: 5
+}
+
+docs {
+  Scénario complet contre le verifier de référence EUDI (`eudiVerifier`), validé le 2026-11-03 :
+  PID SD-JWT et mDL acceptés.
+
+  1. *Récupérer l'IACA* : racine de l'autorité de test → `iacaPem`
+  2. *Créer la transaction* : le verifier génère une requête signée (`x509_hash`, `direct_post.jwt` chiffré).
+     `issuer_chain` = notre IACA pour qu'il fasse confiance aux credentials ; `intended_use_id` est obligatoire.
+  3. *Présenter au wallet* : résolution de `openid4vp://…`
+  4. *Accepter* : envoi chiffré (ECDH-ES)
+  5. *Résultat côté verifier* : ce qu'il a reçu et validé
+
+  Le wallet doit accepter le certificat du verifier : lancer avec `--wallet.trust-all-verifiers=true`, ou ajouter sa
+  racine dans `wallet.verifier-trust-anchors`. Variable de runtime `eudiFormat` : `sd-jwt` (défaut) ou `mdoc`.
+}

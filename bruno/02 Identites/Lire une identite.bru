@@ -1,0 +1,19 @@
+meta {
+  name: Lire une identité
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/identities/{{identityId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("200", () => expect(res.status).to.equal(200));
+}
+
+docs {
+  Identité, ses claims (avec leur `id`) et les credentials émis. 404 si inconnue.
+}

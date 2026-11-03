@@ -1,0 +1,19 @@
+meta {
+  name: Supprimer une identité
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{baseUrl}}/api/identities/{{identityId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("204", () => expect(res.status).to.equal(204));
+}
+
+docs {
+  Supprime l'identité, ses claims (cascade) et ses credentials. `204`.
+}

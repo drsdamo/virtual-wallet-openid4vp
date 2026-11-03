@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Virtual Wallet OpenID4VP",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

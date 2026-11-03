@@ -1,0 +1,19 @@
+meta {
+  name: Supprimer un claim
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/identities/{{identityId}}/claims/{{claimId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("200", () => expect(res.status).to.equal(200));
+}
+
+docs {
+  Supprime le claim `claimId`, renvoie l'identité à jour.
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/actuator/health
+  body: none
+  auth: none
+}
+
+tests {
+  test("UP", () => expect(res.body.status).to.equal("UP"));
+}
+
+docs {
+  Actuator : `{"status":"UP"}` quand le wallet est prêt.
+}

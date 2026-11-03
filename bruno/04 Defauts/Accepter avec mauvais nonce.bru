@@ -1,0 +1,36 @@
+meta {
+  name: Accepter avec un mauvais nonce (SD-JWT)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}/accept
+  body: json
+  auth: none
+}
+
+body:json {
+  { "faults": ["SD_JWT_WRONG_NONCE"] }
+}
+
+script:pre-request {
+  // Une présentation n'est répondue qu'une fois : si la courante l'est déjà, en résoudre une nouvelle.
+  if (!bru.getVar("presentationId") || bru.getVar("presentationAnswered")) {
+    await bru.runRequest("03 Presentation/Resoudre une requete");
+  }
+}
+
+script:post-response {
+  if (res.status !== 404) bru.setVar("presentationAnswered", true);
+}
+
+tests {
+  test("réponse envoyée (502 = verifier injoignable, attendu avec la requête de démo)", () => {
+    expect([200, 502]).to.include(res.status);
+  });
+}
+
+docs {
+  Le KB-JWT porte un `nonce` différent de la requête : le verifier doit refuser (rejeu).
+}

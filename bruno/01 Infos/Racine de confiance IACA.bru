@@ -1,0 +1,25 @@
+meta {
+  name: Racine de confiance IACA
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/trust/iaca.pem
+  body: none
+  auth: none
+}
+
+script:post-response {
+  bru.setVar("iacaPem", res.body);
+}
+
+tests {
+  test("PEM", () => expect(res.body).to.contain("BEGIN CERTIFICATE"));
+}
+
+docs {
+  Certificat racine (PEM) de l'autorité de test qui signe tous les credentials (DS mdoc et émetteur SD-JWT).
+  **À installer dans le trust store du verifier**, sinon il rejette les présentations
+  (`IssuerCertificateIsNotTrusted` / `X5CNotTrusted`). Stocké dans la variable `iacaPem`.
+}

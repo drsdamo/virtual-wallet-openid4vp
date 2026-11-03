@@ -1,0 +1,41 @@
+meta {
+  name: Créer une identité
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/identities
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "familyName": "DURAND",
+    "givenName": "Léa",
+    "birthDate": "2001-02-03",
+    "claims": [
+      { "name": "nationality", "value": "FR", "scope": "ALL" },
+      { "name": "sex", "type": "NUMBER", "value": "2" },
+      { "name": "address.locality", "value": "Nantes", "scope": "SD_JWT" },
+      { "name": "resident_city", "value": "Nantes", "scope": "MDOC" }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("identityId", res.body.identity.id);
+}
+
+tests {
+  test("201 + 3 credentials", () => {
+    expect(res.status).to.equal(201);
+    expect(res.body.credentials.length).to.equal(3);
+  });
+}
+
+docs {
+  `familyName`, `givenName`, `birthDate` obligatoires ; `claims` optionnel.
+  Enregistre l'id dans `identityId`.
+}

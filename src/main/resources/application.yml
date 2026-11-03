@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: virtual-wallet-openid4vp
+  sql:
+    init:
+      mode: always   # schema.sql utilise CREATE TABLE IF NOT EXISTS
+  threads:
+    virtual:
+      enabled: true   # l'adaptateur OpenID4VP bloque sur des coroutines ; les threads virtuels rendent ce blocage peu coûteux
+
+wallet:
+  trust-all-verifiers: false   # TESTS UNIQUEMENT : accepte tout verifier x509
+  verifier-trust-anchors: []   # fichiers PEM des racines de verifiers de confiance, par ex. [./trust/eudi-verifier.pem]
+  data-dir: ./wallet-data   # autorité de test + clés du wallet (PEM) et base SQLite, conservées entre redémarrages
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    io.github.wallet: INFO
+    io.github.wallet.http.in: INFO    # DEBUG : en-têtes et corps des requêtes entrantes
+    io.github.wallet.http.out: INFO   # DEBUG : en-têtes et corps des appels aux verifiers (vp_token compris)

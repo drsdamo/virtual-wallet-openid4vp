@@ -1,0 +1,28 @@
+meta {
+  name: Modifier un claim
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/identities/{{identityId}}/claims/{{claimId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "address.postal_code",
+    "type": "STRING",
+    "value": "35000",
+    "scope": "SD_JWT"
+  }
+}
+
+tests {
+  test("valeur modifiée", () => expect(res.body.identity.claims.map(c => c.value)).to.include("35000"));
+}
+
+docs {
+  Remplace nom, type, valeur et portée du claim `claimId`.
+}

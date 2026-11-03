@@ -1,0 +1,20 @@
+meta {
+  name: 5. Résultat côté verifier
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{eudiVerifier}}/ui/presentations/{{transactionId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("présentation reçue", () => expect(res.status).to.equal(200));
+}
+
+docs {
+  `vp_token` reçu et validé par le verifier. `400 PresentationNotSubmitted` si la réponse a été rejetée
+  (le verifier ne garde pas les présentations invalides).
+}

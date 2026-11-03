@@ -1,0 +1,27 @@
+meta {
+  name: Modifier une identité
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/identities/{{identityId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "familyName": "DURAND-PETIT",
+    "givenName": "Léa",
+    "birthDate": "2001-02-03"
+  }
+}
+
+tests {
+  test("nom modifié", () => expect(res.body.identity.familyName).to.equal("DURAND-PETIT"));
+}
+
+docs {
+  Remplace nom, prénom et date de naissance. Les claims ne sont pas touchés (voir les requêtes *claim*).
+}

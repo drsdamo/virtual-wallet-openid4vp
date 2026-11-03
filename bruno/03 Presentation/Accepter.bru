@@ -1,0 +1,39 @@
+meta {
+  name: Accepter (partager)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}/accept
+  body: json
+  auth: none
+}
+
+body:json {
+  { "faults": [] }
+}
+
+script:pre-request {
+  // Une présentation n'est répondue qu'une fois : si la courante l'est déjà, en résoudre une nouvelle.
+  if (!bru.getVar("presentationId") || bru.getVar("presentationAnswered")) {
+    await bru.runRequest("03 Presentation/Resoudre une requete");
+  }
+}
+
+script:post-response {
+  if (res.status !== 404) bru.setVar("presentationAnswered", true);
+}
+
+tests {
+  test("réponse envoyée (502 = verifier injoignable, attendu avec la requête de démo)", () => {
+    expect([200, 502]).to.include(res.status);
+  });
+}
+
+docs {
+  Construit les présentations (SD-JWT VC + KB-JWT, mdoc DeviceResponse) et les envoie au verifier.
+
+  Réponse : `accepted` (statut HTTP du verifier), `redirectUri` éventuelle, `faults`, `exchanges`.
+  **502** `{"error": ...}` si le verifier est injoignable ou répond une erreur : c'est le cas avec la requête de démo.
+}

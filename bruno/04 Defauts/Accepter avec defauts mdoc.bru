@@ -1,0 +1,41 @@
+meta {
+  name: Accepter avec un transcript mdoc faux
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}/accept
+  body: json
+  auth: none
+}
+
+body:json {
+  { "faults": ["MDOC_WRONG_NONCE"] }
+}
+
+script:pre-request {
+  // Une présentation n'est répondue qu'une fois : si la courante l'est déjà, en résoudre une nouvelle.
+  if (!bru.getVar("presentationId") || bru.getVar("presentationAnswered")) {
+    await bru.runRequest("03 Presentation/Resoudre une requete");
+  }
+}
+
+script:post-response {
+  if (res.status !== 404) bru.setVar("presentationAnswered", true);
+}
+
+tests {
+  test("réponse envoyée (502 = verifier injoignable, attendu avec la requête de démo)", () => {
+    expect([200, 502]).to.include(res.status);
+  });
+}
+
+docs {
+  Le `SessionTranscript` (OpenID4VPHandover) est calculé avec un autre nonce : la DeviceSignature ne se vérifie pas.
+
+  Autres défauts : `SD_JWT_WRONG_AUDIENCE`, `SD_JWT_STALE_KB`, `SD_JWT_BAD_KB_SIGNATURE`, `SD_JWT_KB_WRONG_KEY`,
+  `SD_JWT_NO_KB`, `SD_JWT_BAD_ISSUER_SIGNATURE`, `SD_JWT_FORGED_DISCLOSURE`, `MDOC_WRONG_CLIENT_ID`,
+  `MDOC_DEVICE_KEY_MISMATCH`, `MDOC_TAMPERED_ELEMENT`, `MDOC_BAD_ISSUER_SIGNATURE`, `VP_TOKEN_WRONG_QUERY_ID`,
+  `OVER_DISCLOSURE`. Ils se combinent.
+}

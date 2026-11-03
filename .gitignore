@@ -1,0 +1,6 @@
+target/
+.idea/
+*.iml
+.kotlin/
+wallet-data/
+logs/

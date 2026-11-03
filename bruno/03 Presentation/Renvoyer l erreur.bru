@@ -1,0 +1,33 @@
+meta {
+  name: Renvoyer l'erreur au verifier
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}/report-error
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  // Une présentation n'est répondue qu'une fois : si la courante l'est déjà, en résoudre une nouvelle.
+  if (!bru.getVar("presentationId") || bru.getVar("presentationAnswered")) {
+    await bru.runRequest("03 Presentation/Resoudre une requete");
+  }
+}
+
+script:post-response {
+  if (![404, 409, 422].includes(res.status)) bru.setVar("presentationAnswered", true);
+}
+
+tests {
+  test("409 avec la requête de démo (valide) ; 200/502 pour une requête invalide", () => {
+    expect([200, 409, 422, 502]).to.include(res.status);
+  });
+}
+
+docs {
+  Pour une requête **invalide** (`valid=false`, `dispatchable=true`) : renvoie l'erreur de résolution au verifier.
+  `422` si la lib n'a pas assez d'informations pour savoir où l'envoyer, `409` si la requête était valide.
+}

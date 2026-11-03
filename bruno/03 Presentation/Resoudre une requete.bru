@@ -1,0 +1,63 @@
+meta {
+  name: Résoudre une requête
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/presentations
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "requestUri": "{{requestUri}}",
+    "identityId": null
+  }
+}
+
+script:pre-request {
+  // Sans requestUri, construit une requête de démo par valeur (client_id redirect_uri:)
+  let uri = bru.getEnvVar("requestUri");
+  if (!uri) {
+    const responseUri = bru.getEnvVar("demoResponseUri");
+    const dcql = {
+      credentials: [
+        { id: "pid", format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] }, claims: [{ path: ["family_name"] }] },
+        { id: "mdl", format: "mso_mdoc", meta: { doctype_value: "org.iso.18013.5.1.mDL" },
+          claims: [{ path: ["org.iso.18013.5.1", "age_over_18"] }] }
+      ]
+    };
+    uri = "openid4vp://?client_id=" + encodeURIComponent("redirect_uri:" + responseUri)
+      + "&response_type=vp_token&response_mode=direct_post"
+      + "&response_uri=" + encodeURIComponent(responseUri)
+      + "&nonce=" + Date.now() + "&state=bruno"
+      + "&dcql_query=" + encodeURIComponent(JSON.stringify(dcql));
+  }
+  req.setBody({ requestUri: uri, identityId: bru.getVar("presentIdentityId") || null });
+}
+
+script:post-response {
+  bru.setVar("presentationId", res.body.id);
+  bru.setVar("presentationAnswered", false);
+}
+
+tests {
+  test("requête valide et satisfaisable", () => {
+    expect(res.body.valid).to.equal(true);
+    expect(res.body.satisfiable).to.equal(true);
+  });
+}
+
+docs {
+  Corps : `requestUri` (obligatoire), `identityId` (optionnel : sinon la première identité qui répond à tout ;
+  variable de runtime `presentIdentityId` dans cette collection).
+
+  Réponse :
+  - `id` → variable `presentationId`
+  - `valid` : la lib EUDI a accepté la requête (signature JAR, client_id, confiance) ; sinon `error`, `dispatchable`
+  - `verifier` : `clientId`, `prefix`, `legalName` (CN du certificat), `responseMode`, `responseUri`, `encryptedResponse`
+  - `queries[]` : pour chaque requête DCQL, le credential retenu et les `disclosedClaims`, ou la `reason` du refus
+  - `exchanges` : appels HTTP déjà faits (récupération du `request_uri`)
+}

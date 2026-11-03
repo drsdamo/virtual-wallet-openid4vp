@@ -1,0 +1,26 @@
+meta {
+  name: Claim refusé (nom réservé)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/identities/{{identityId}}/claims
+  body: json
+  auth: none
+}
+
+body:json {
+  { "name": "family_name", "value": "X" }
+}
+
+tests {
+  test("400 avec message", () => {
+    expect(res.status).to.equal(400);
+    expect(res.body.error).to.contain("cannot be overridden");
+  });
+}
+
+docs {
+  Exemple de validation : `family_name` est posé par l'émetteur. Réponse `400 {"error": "..."}`.
+}

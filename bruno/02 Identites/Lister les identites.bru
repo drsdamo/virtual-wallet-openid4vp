@@ -1,0 +1,15 @@
+meta {
+  name: Lister les identités
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/identities
+  body: none
+  auth: none
+}
+
+docs {
+  Renvoie `[{ identity, credentials }]`. Une base vide est initialisée avec Camille MARTIN.
+}

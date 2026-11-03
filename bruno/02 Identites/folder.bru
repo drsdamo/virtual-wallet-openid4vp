@@ -1,0 +1,21 @@
+meta {
+  name: 02 Identités
+  seq: 2
+}
+
+docs {
+  CRUD sur les identités (SQLite) et leurs claims additionnels. **Chaque modification réémet les 3 credentials**
+  de l'identité.
+
+  Claim additionnel :
+
+  | Champ | Valeurs |
+  |---|---|
+  | `name` | lettres, chiffres, `_` ; `a.b` = objet imbriqué (SD_JWT seulement) |
+  | `type` | `STRING` (défaut), `NUMBER`, `BOOLEAN`, `DATE` (`AAAA-MM-JJ`) |
+  | `value` | texte, validé selon `type` |
+  | `scope` | `ALL` (défaut : PID SD-JWT + PID mdoc), `SD_JWT`, `MDOC` |
+
+  Refusés (400) : noms posés par l'émetteur (`family_name`, `given_name`, `birthdate`, `age_*`, `issuing_*`, `iss`,
+  `vct`, `cnf`…), doublons pour un même credential, `address` et `address.x` en même temps.
+}

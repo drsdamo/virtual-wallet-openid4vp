@@ -1,0 +1,33 @@
+meta {
+  name: 3. Présenter au wallet
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/presentations
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "requestUri": "{{eudiRequestUri}}"
+  }
+}
+
+script:post-response {
+  bru.setVar("presentationId", res.body.id);
+}
+
+tests {
+  test("requête EUDI valide", () => {
+    expect(res.body.valid, res.body.error).to.equal(true);
+    expect(res.body.verifier.encryptedResponse).to.equal(true);
+  });
+}
+
+docs {
+  Le wallet récupère le JAR signé, vérifie le certificat (`x509_hash`) et fait la correspondance DCQL.
+  `valid=false` avec une erreur de confiance : relancer le wallet avec `--wallet.trust-all-verifiers=true`.
+}

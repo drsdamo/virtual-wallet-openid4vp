@@ -1,0 +1,28 @@
+docs {
+  # Virtual Wallet OpenID4VP
+
+  Collection pour piloter le wallet de test : identités, credentials, présentation OpenID4VP à un verifier,
+  injection de défauts et journal des échanges.
+
+  ## Démarrage
+
+  1. Lancer le wallet : `./mvnw spring-boot:run` (port 8080).
+  2. Choisir l'environnement **local** (variable `baseUrl`).
+  3. Exécuter les dossiers dans l'ordre : chaque requête enregistre ce dont la suivante a besoin
+     (`identityId`, `claimId`, `presentationId`…) dans les variables de runtime.
+
+  ## Variables
+
+  | Variable | Rôle |
+  |---|---|
+  | `baseUrl` | URL du wallet |
+  | `requestUri` | requête `openid4vp://…` d'un vrai verifier ; vide = requête de démo générée |
+  | `demoResponseUri` | `response_uri` de la requête de démo (aucun verifier n'y répond : `accept` renvoie 502, c'est attendu) |
+  | `eudiVerifier` | verifier de référence EUDI, pour le scénario de bout en bout |
+
+  ## Flux OpenID4VP côté wallet
+
+  `POST /api/presentations` résout la requête (JAR, client_id, DCQL) et renvoie un `id` ;
+  puis `accept`, `decline` ou `report-error` sur cet `id` envoie la réponse au verifier.
+  Une présentation n'est répondue qu'une fois : relancer la résolution pour recommencer.
+}

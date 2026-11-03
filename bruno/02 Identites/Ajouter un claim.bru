@@ -1,0 +1,34 @@
+meta {
+  name: Ajouter un claim
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/identities/{{identityId}}/claims
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "address.postal_code",
+    "type": "STRING",
+    "value": "44000",
+    "scope": "SD_JWT"
+  }
+}
+
+script:post-response {
+  const c = (res.body.identity?.claims || []).find(c => c.name === "address.postal_code");
+  if (c) bru.setVar("claimId", c.id);
+}
+
+tests {
+  test("201", () => expect(res.status).to.equal(201));
+}
+
+docs {
+  Ajoute un claim et réémet les credentials. Enregistre son id dans `claimId`.
+  Vérifier le résultat avec *01 Infos / Lister les credentials* : `address.postal_code` apparaît dans le PID SD-JWT.
+}

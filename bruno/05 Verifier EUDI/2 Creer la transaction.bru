@@ -1,0 +1,50 @@
+meta {
+  name: 2. Créer la transaction (verifier)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{eudiVerifier}}/ui/presentations
+  body: json
+  auth: none
+}
+
+body:json {
+  {}
+}
+
+script:pre-request {
+  const mdoc = bru.getVar("eudiFormat") === "mdoc";
+  const credential = mdoc
+    ? { id: "mdl", format: "mso_mdoc", meta: { doctype_value: "org.iso.18013.5.1.mDL" },
+        claims: [{ path: ["org.iso.18013.5.1", "family_name"] }, { path: ["org.iso.18013.5.1", "given_name"] }] }
+    : { id: "pid", format: "dc+sd-jwt", meta: { vct_values: ["urn:eudi:pid:1"] },
+        claims: [{ path: ["family_name"] }, { path: ["given_name"] }] };
+  req.setBody({
+    type: "vp_token",
+    dcql_query: { credentials: [credential] },
+    nonce: "bruno-" + Date.now(),
+    request_uri_method: "get",
+    intended_use_id: "TEST-01",
+    issuer_chain: bru.getVar("iacaPem")
+  });
+}
+
+script:post-response {
+  bru.setVar("transactionId", res.body.transaction_id);
+  bru.setVar("eudiRequestUri", "openid4vp://?client_id=" + encodeURIComponent(res.body.client_id)
+    + "&request_uri=" + encodeURIComponent(res.body.request_uri)
+    + "&request_uri_method=" + (res.body.request_uri_method || "get"));
+}
+
+tests {
+  test("transaction créée", () => expect(res.body.transaction_id).to.be.a("string"));
+}
+
+docs {
+  API du verifier EUDI (pas du wallet). Corps construit par le script : `dcql_query` selon `eudiFormat`,
+  `intended_use_id: "TEST-01"` (sans lui : `400 MissingRegistrationCertificate`), `issuer_chain` = `iacaPem`.
+
+  Enregistre `transactionId` et l'URL `openid4vp://…` dans `eudiRequestUri`.
+}
