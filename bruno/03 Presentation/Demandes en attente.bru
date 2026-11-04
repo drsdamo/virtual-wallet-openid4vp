@@ -1,0 +1,27 @@
+meta {
+  name: Demandes en attente
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/presentations/pending
+  body: none
+  auth: none
+}
+
+tests {
+  test("liste des demandes en attente", () => {
+    expect(res.status).to.equal(200);
+    expect(res.body).to.be.an("array");
+  });
+}
+
+docs {
+  Requêtes reçues qui attendent la décision du porteur, de la plus ancienne à la plus récente : c'est ce que la page
+  `http://localhost:8080/` interroge toutes les 2 s pour afficher les demandes à valider.
+
+  Même forme que la réponse de *Résoudre une requête*, plus `receivedAt`. Chaque `queries[].claims` donne le `path`
+  DCQL et la `value` que le wallet divulguera. Une demande sort de la liste dès qu'elle est acceptée, refusée,
+  renvoyée en erreur ou ignorée.
+}

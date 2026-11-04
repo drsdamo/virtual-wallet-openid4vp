@@ -82,8 +82,14 @@ au redémarrage. **Le verifier doit faire confiance à cette racine** : `GET /ap
 
 ## Présenter des credentials
 
-Ouvrir `http://localhost:8080/`, coller la requête du verifier (`openid4vp://…`, contenu du QR code), puis
-**Partager** ou **Refuser**. `http://localhost:8080/?request=<url-encodée>` pré-remplit et résout directement.
+Ouvrir `http://localhost:8080/` et coller la requête du verifier (`openid4vp://…`, contenu du QR code), ou l'envoyer par
+`POST /api/presentations` (Bruno, script…). `http://localhost:8080/?request=<url-encodée>` l'envoie directement.
+
+Toute requête reçue est **mise en attente** de la décision du porteur, comme sur un vrai wallet : la page interroge
+`GET /api/presentations/pending` toutes les 2 s et affiche une carte par demande, avec le verifier, les credentials
+demandés et chaque claim avec **la valeur qui sera divulguée**. Le porteur clique **Partager** ou **Refuser** ;
+une requête invalide peut être renvoyée au verifier (si possible) ou **ignorée**. Le titre de l'onglet indique le
+nombre de demandes en attente. Les demandes sont gardées en mémoire (perdues au redémarrage).
 
 Ce qui est géré :
 - résolution via la lib EUDI : `request_uri` (GET/POST), JAR signé, préfixes `x509_san_dns`, `x509_hash`, `redirect_uri` ;
@@ -101,7 +107,9 @@ réponse mdoc en mode `query`/`fragment`, DC API.
 |---|---|---|
 | `GET` | `/api/credentials` | credentials et claims |
 | `GET` | `/api/trust/iaca.pem` | racine de l'autorité de test |
-| `POST` | `/api/presentations` `{"requestUri": "…"}` | résout la requête, renvoie un `id` et la correspondance DCQL |
+| `POST` | `/api/presentations` `{"requestUri": "…"}` | résout la requête, la met en attente, renvoie un `id` et la correspondance DCQL |
+| `GET` | `/api/presentations/pending` | demandes en attente, de la plus ancienne à la plus récente (claims demandés + valeurs) |
+| `GET` / `DELETE` | `/api/presentations/{id}` | une demande en attente / l'ignorer sans répondre au verifier |
 | `POST` | `/api/presentations/{id}/accept` | envoie le `vp_token` |
 | `POST` | `/api/presentations/{id}/decline` | envoie `access_denied` |
 | `POST` | `/api/presentations/{id}/report-error` | renvoie l'erreur de résolution au verifier (si possible) |

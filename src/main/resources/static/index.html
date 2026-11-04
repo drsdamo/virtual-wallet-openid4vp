@@ -37,30 +37,37 @@
   .ex { border-top:1px solid var(--line); padding:8px 0; } .ex summary { cursor:pointer; }
   .ex pre { background:var(--bg); padding:8px; border-radius:6px; margin:6px 0; max-height:320px; overflow:auto; }
   a { color:var(--accent); }
+  .card { border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:12px; margin-top:12px; }
+  .card.invalid { border-left-color:var(--ko); }
+  .card.new { animation:flash 1.2s ease-out 2; }
+  @keyframes flash { 50% { background:color-mix(in srgb, var(--accent) 15%, transparent); } }
+  .card h3 { font-size:15px; margin:0 0 4px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .claim-list { margin:4px 0 0; padding-left:20px; } .claim-list code { font-weight:600; }
+  .badge { display:inline-block; min-width:20px; padding:0 6px; border-radius:10px; background:var(--accent); color:#fff; font-size:12px; text-align:center; vertical-align:middle; }
+  .badge:empty { display:none; }
 </style>
 </head>
 <body>
 <main>
   <h1>Virtual Wallet</h1>
-  <p class="sub">Wallet de test OpenID4VP. Colle la requête du verifier (<code>openid4vp://…</code>, contenu du QR code).
+  <p class="sub">Wallet de test OpenID4VP. Colle la requête du verifier (<code>openid4vp://…</code>, contenu du QR code)
+    ou envoie-la par l'API (<code>POST /api/presentations</code>) : elle apparaît dans les demandes en attente.
     Racine de confiance à installer côté verifier : <a href="/api/trust/iaca.pem">iaca.pem</a>.</p>
 
   <section>
-    <h2>Requête d'autorisation</h2>
+    <h2>Présenter au wallet</h2>
     <textarea id="uri" placeholder="openid4vp://?client_id=…&request_uri=…"></textarea>
     <label class="row">Identité présentée
       <select id="identity-select"><option value="">Automatique (première qui répond à tout)</option></select></label>
-    <button class="primary" id="resolve">Résoudre</button>
+    <button class="primary" id="resolve">Envoyer au wallet</button>
+    <p class="err" id="resolve-err"></p>
   </section>
 
-  <section id="request" class="hidden">
-    <h2>Demande du verifier</h2>
-    <div id="request-body"></div>
-    <details id="faults-box" style="margin-top:12px"><summary>Injecter des défauts (test de robustesse du verifier)</summary>
-      <div id="faults"></div></details>
-    <button class="primary" id="accept">Partager</button>
-    <button id="decline">Refuser</button>
-    <button id="report" class="hidden">Renvoyer l'erreur au verifier</button>
+  <section>
+    <h2>Demandes en attente <span class="badge" id="inbox-count"></span></h2>
+    <p class="muted" id="inbox-empty">Aucune demande. Une requête reçue (page ou API) s'affiche ici pour validation.</p>
+    <div id="inbox"></div>
   </section>
 
   <section id="result" class="hidden">
@@ -95,7 +102,6 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let current = null;
 
 async function call(method, url, body) {
   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
@@ -132,68 +138,110 @@ function showLog(exchanges) {
 }
 
 let faults = [];
-call('GET', '/api/presentations/faults').then(list => { faults = list; });
 function renderFaults(formats) {
-  $('faults').innerHTML = faults.filter(f => !f.format || formats.includes(f.format)).map(f => `
+  return faults.filter(f => !f.format || formats.includes(f.format)).map(f => `
     <label class="fault"><input type="checkbox" value="${esc(f.name)}"> <code>${esc(f.name)}</code>${esc(f.description)}</label>`).join('');
 }
 
-$('resolve').onclick = async () => {
-  $('result').classList.add('hidden');
-  try {
-    current = await call('POST', '/api/presentations', { requestUri: $('uri').value, identityId: $('identity-select').value || null });
-    $('request').classList.remove('hidden');
-    const valid = current.valid;
-    $('accept').classList.toggle('hidden', !valid);
-    $('decline').classList.toggle('hidden', !valid);
-    $('report').classList.toggle('hidden', valid || !current.dispatchable);
-    $('accept').disabled = !valid || !current.queries.some(q => q.credentialId);
-    $('faults-box').classList.toggle('hidden', !valid);
-    showLog(current.exchanges);
-    if (!valid) {
-      $('request-body').innerHTML = `<p class="ko">Requête invalide</p><pre>${esc(current.error)}</pre>`;
-      return;
-    }
-    renderFaults(current.queries.filter(q => q.credentialId).map(q => q.format));
-    const v = current.verifier;
-    $('request-body').innerHTML = `
+// Chemin DCQL lisible : élément seul pour un mdoc ([namespace, élément]), chemin pointé pour un SD-JWT.
+function claimLabel(format, path) {
+  const p = format === 'mso_mdoc' && path.length === 2 ? [path[1]] : path;
+  return p.map(e => e === null ? '[*]' : typeof e === 'number' ? `[${e}]` : e).join('.').replace(/\.\[/g, '[');
+}
+function claimValue(v) {
+  if (v === null || v === undefined) return '<span class="muted">absent</span>';
+  return esc(typeof v === 'object' ? JSON.stringify(v) : v);
+}
+function identityName(id) {
+  const v = identities.find(x => x.identity.id === id);
+  return v ? `${v.identity.givenName} ${v.identity.familyName}` : id;
+}
+
+// Carte de consentement : qui demande, quelles données (avec les valeurs qui partiraient), et la décision.
+function card(p) {
+  const when = new Date(p.receivedAt).toLocaleTimeString();
+  if (!p.valid) {
+    return `<h3 class="ko">Requête invalide reçue</h3><p class="muted">Reçue à ${when}</p><pre>${esc(p.error)}</pre>
+      ${p.dispatchable ? `<button data-act="report-error">Renvoyer l'erreur au verifier</button>` : ''}
+      <button data-act="dismiss">Ignorer</button>`;
+  }
+  const v = p.verifier, shared = p.queries.filter(q => q.credentialId);
+  return `
+    <h3>${esc(v.legalName || v.clientId)} demande à accéder à vos données</h3>
+    <p class="muted">Reçue à ${when}${p.identityId ? ` · identité présentée : <strong>${esc(identityName(p.identityId))}</strong>` : ''}</p>
+    ${p.queries.map(q => `
+      <div class="q">
+        <strong>${esc(q.requestedTypes.join(', ') || q.format)}</strong> <span class="muted">${esc(q.format)} · ${esc(q.queryId)}</span>
+        ${!q.credentialId ? `<p class="ko">✗ Impossible à fournir : ${esc(q.reason)}</p>`
+          : q.claims ? `<ul class="claim-list">${q.claims.map(c => `<li><code>${esc(claimLabel(q.format, c.path))}</code> : ${claimValue(c.value)}</li>`).join('')}</ul>`
+          : `<p class="ko">Le verifier demande le credential entier (tous ses claims).</p>`}
+      </div>`).join('')}
+    ${p.satisfiable ? '' : `<p class="ko">Le wallet ne peut pas répondre à toute la demande${shared.length ? ' : seule une partie sera partagée' : ''}.</p>`}
+    <details class="q"><summary class="muted">Détails techniques</summary>
       <dl>
         <dt>client_id</dt><dd><code>${esc(v.clientId)}</code></dd>
-        <dt>Nom</dt><dd>${esc(v.legalName || '—')}</dd>
         <dt>Réponse</dt><dd>${esc(v.responseMode)}${v.encryptedResponse ? ' (chiffrée)' : ''} → <code>${esc(v.responseUri)}</code></dd>
-        <dt>nonce</dt><dd><code>${esc(current.nonce)}</code></dd>
-      </dl>
-      <h2 style="margin-top:16px">Credentials demandés</h2>
-      ${current.queries.map(q => `
-        <div class="q">
-          <strong>${esc(q.queryId)}</strong> · ${esc(q.format)} · ${esc(q.requestedTypes.join(', ') || 'tout type')}<br>
-          ${q.credentialId
-            ? `<span class="ok">✓ ${esc(q.credentialId)}</span> — divulgué : ${q.disclosedClaims ? q.disclosedClaims.map(p => `<code>${esc(JSON.stringify(p))}</code>`).join(' ') : 'tout le credential'}`
-            : `<span class="ko">✗ ${esc(q.reason)}</span>`}
-        </div>`).join('')}`;
-  } catch (e) {
-    $('request').classList.add('hidden');
-    showResult(`<p class="ko">${esc(e.message)}</p>`);
+        <dt>nonce</dt><dd><code>${esc(p.nonce)}</code></dd>
+      </dl></details>
+    <details class="q"><summary class="muted">Injecter des défauts (test de robustesse du verifier)</summary>
+      ${renderFaults(shared.map(q => q.format))}</details>
+    <button class="primary" data-act="accept" ${shared.length ? '' : 'disabled'}>Partager</button>
+    <button data-act="decline">Refuser</button>`;
+}
+
+// File d'attente interrogée toutes les 2 s. Les cartes déjà affichées ne sont pas redessinées
+// (les cases à cocher et les blocs dépliés restent en l'état).
+let firstPoll = true;
+async function poll() {
+  let list;
+  try { list = await call('GET', '/api/presentations/pending'); } catch { return; }
+  const ids = new Set(list.map(p => p.id));
+  document.querySelectorAll('#inbox [data-id]').forEach(el => { if (!ids.has(el.dataset.id)) el.remove(); });
+  for (const p of list) {
+    if (document.querySelector(`#inbox [data-id="${p.id}"]`)) continue;
+    const el = document.createElement('div');
+    el.className = `card${p.valid ? '' : ' invalid'}${firstPoll ? '' : ' new'}`;
+    el.dataset.id = p.id;
+    el.innerHTML = card(p);
+    $('inbox').append(el);
   }
+  firstPoll = false;
+  $('inbox-count').textContent = list.length || '';
+  $('inbox-empty').classList.toggle('hidden', list.length > 0);
+  document.title = list.length ? `(${list.length}) Virtual Wallet` : 'Virtual Wallet';
+}
+
+$('resolve').onclick = async () => {
+  $('resolve-err').textContent = '';
+  try {
+    const p = await call('POST', '/api/presentations', { requestUri: $('uri').value, identityId: $('identity-select').value || null });
+    showLog(p.exchanges);
+    await poll();
+  } catch (e) { $('resolve-err').textContent = e.message; }
 };
 
-async function answer(action) {
-  const selected = [...document.querySelectorAll('#faults input:checked')].map(i => i.value);
+async function answer(el, action) {
+  const id = el.dataset.id;
+  const selected = [...el.querySelectorAll('.fault input:checked')].map(i => i.value);
+  el.querySelectorAll('button').forEach(b => b.disabled = true);
   try {
-    const r = await call('POST', `/api/presentations/${current.id}/${action}`, action === 'accept' ? { faults: selected } : undefined);
-    $('request').classList.add('hidden');
+    if (action === 'dismiss') { await call('DELETE', `/api/presentations/${id}`); el.remove(); await poll(); return; }
+    const r = await call('POST', `/api/presentations/${id}/${action}`, action === 'accept' ? { faults: selected } : undefined);
     const injected = r.faults && r.faults.length ? `<p>Défauts injectés : ${r.faults.map(f => `<code>${esc(f)}</code>`).join(' ')}</p>` : '';
-    showResult(`<p class="${r.accepted ? 'ok' : 'ko'}">${r.accepted ? 'Réponse acceptée par le verifier' : 'Réponse rejetée par le verifier'}</p>${injected}
+    const what = { accept: 'Partage', decline: 'Refus', 'report-error': 'Erreur' }[action];
+    showResult(`<p class="${r.accepted ? 'ok' : 'ko'}">${what} envoyé : ${r.accepted ? 'réponse acceptée par le verifier' : 'réponse rejetée par le verifier'}</p>${injected}
       ${r.redirectUri ? `<p>Redirection : <a href="${esc(r.redirectUri)}" target="_blank" rel="noopener">${esc(r.redirectUri)}</a></p>` : ''}`);
     showLog(r.exchanges);
   } catch (e) {
     showResult(`<p class="ko">${esc(e.message)}</p>`);
-    call('GET', `/api/presentations/${current.id}/exchanges`).then(showLog).catch(() => {});
+    call('GET', `/api/presentations/${id}/exchanges`).then(showLog).catch(() => {});
   }
+  await poll();
 }
-$('accept').onclick = () => answer('accept');
-$('decline').onclick = () => answer('decline');
-$('report').onclick = () => answer('report-error');
+$('inbox').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button[data-act]'); if (!btn) return;
+  answer(btn.closest('[data-id]'), btn.dataset.act);
+});
 
 let identities = [];
 function loadCredentials() {
@@ -265,10 +313,14 @@ $('new-identity').addEventListener('submit', async (ev) => {
   try { const v = await call('POST', '/api/identities', formData(ev.target)); ev.target.reset(); await loadIdentities(v.identity.id); }
   catch (e) { $('new-identity-err').textContent = e.message; }
 });
-loadIdentities();
-
-const fromQuery = new URLSearchParams(location.search).get('request');
-if (fromQuery) { $('uri').value = fromQuery; $('resolve').click(); }
+// Défauts et identités d'abord (les cartes s'en servent), puis interrogation de la file d'attente.
+Promise.allSettled([call('GET', '/api/presentations/faults').then(list => { faults = list; }), loadIdentities()])
+  .then(() => {
+    poll();
+    setInterval(poll, 2000);
+    const fromQuery = new URLSearchParams(location.search).get('request');
+    if (fromQuery) { $('uri').value = fromQuery; $('resolve').click(); }
+  });
 </script>
 </body>
 </html>
