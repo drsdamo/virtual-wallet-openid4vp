@@ -1,0 +1,33 @@
+meta {
+  name: Ignorer une demande
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/presentations/{{presentationId}}
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  // Une présentation n'est répondue qu'une fois : si la courante l'est déjà, en résoudre une nouvelle.
+  if (!bru.getVar("presentationId") || bru.getVar("presentationAnswered")) {
+    await bru.runRequest("03 Presentation/Resoudre une requete");
+  }
+}
+
+script:post-response {
+  if (res.status !== 404) bru.setVar("presentationAnswered", true);
+}
+
+tests {
+  test("demande retirée de la file", () => {
+    expect(res.status).to.equal(204);
+  });
+}
+
+docs {
+  Retire la demande de la file d'attente **sans rien envoyer au verifier** (utile pour une requête invalide que
+  la lib ne sait pas renvoyer). **404** si la demande est inconnue ou déjà répondue.
+}

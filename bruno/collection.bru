@@ -22,7 +22,8 @@ docs {
 
   ## Flux OpenID4VP côté wallet
 
-  `POST /api/presentations` résout la requête (JAR, client_id, DCQL) et renvoie un `id` ;
-  puis `accept`, `decline` ou `report-error` sur cet `id` envoie la réponse au verifier.
+  `POST /api/presentations` résout la requête (JAR, client_id, DCQL), la met en attente et renvoie un `id` ;
+  puis `accept`, `decline` ou `report-error` sur cet `id` envoie la réponse au verifier. Les demandes en attente
+  s'affichent aussi dans la page du wallet, qui permet de les valider à la main.
   Une présentation n'est répondue qu'une fois : relancer la résolution pour recommencer.
 }
