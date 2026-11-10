@@ -196,3 +196,7 @@ révocation) jusqu'à un certificat de `wallet.verifier-trust-anchors`, ou conti
 2. Credentials de test (SD-JWT VC, mdoc) émis au démarrage, clé wallet ✅
 3. Flux de présentation : résolution, sélection DCQL, KB-JWT / DeviceResponse, `direct_post(.jwt)`, UI minimale ✅
 4. Outils de test : journal des échanges, injection d'erreurs, trust store ✅ — essai contre le verifier de référence EUDI à faire
+
+## Documentation
+
+- [`docs/openid4vci-animation.html`](docs/openid4vci-animation.html) : animation du flux OpenID4VCI 1.0 réduit aux endpoints obligatoires (pré-autorisé ou authorization code). À ouvrir dans un navigateur. Pour mémoire seulement : le wallet ne gère pas l'émission.

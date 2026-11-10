@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Flux OpenID4VCI minimal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout : diagramme de séquence animé à gauche, panneau de détail HTTP à droite (empilés sur mobile) */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --fg: #17202c; --muted: #5a6677; --line: #b7c0cd; --band: #e3ebf7;
+  --accent: #1d56cf; --code-bg: #f4f6fa; --code-key: #1d56cf; --code-str: #0e6f5c;
+  --c-U: #4a5568; --c-W: #0b7a84; --c-AS: #6a43bd; --c-CI: #b05a0c;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e131a; --surface: #161d27; --fg: #e3e8ef; --muted: #96a2b3; --line: #3b4656; --band: #1d2a3d;
+  --accent: #7ba3ff; --code-bg: #10161e; --code-key: #8fb1ff; --code-str: #5fd0b4;
+  --c-U: #aab5c5; --c-W: #43c4cc; --c-AS: #ab90f2; --c-CI: #f0a457; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e131a; --surface: #161d27; --fg: #e3e8ef; --muted: #96a2b3; --line: #3b4656; --band: #1d2a3d;
+  --accent: #7ba3ff; --code-bg: #10161e; --code-key: #8fb1ff; --code-str: #5fd0b4;
+  --c-U: #aab5c5; --c-W: #43c4cc; --c-AS: #ab90f2; --c-CI: #f0a457; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+header h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(26px, 4vw, 36px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 14px var(--f-body); padding: 7px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }
+.ctrl { display: inline-flex; gap: 6px; margin-left: auto; }
+.ctrl button { font: 600 14px var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.ctrl button.play { background: var(--fg); color: var(--surface); border-color: var(--fg); min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.progress { display: flex; gap: 3px; }
+.progress button { flex: 1; height: 8px; border: 0; padding: 0; border-radius: 2px; background: var(--line); cursor: pointer; opacity: .55; }
+.progress button.done { opacity: .9; }
+.progress button.cur { opacity: 1; outline: 2px solid var(--fg); outline-offset: 1px; }
+.main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .ctrl { margin-left: 0; } }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 600px; height: auto; }
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); min-width: 0; }
+.eyebrow { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.detail h2 { font-family: var(--f-display); font-weight: 700; font-size: 24px; margin: 0; text-wrap: balance; }
+.detail p { margin: 0; max-width: 65ch; }
+.detail ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.route { font: 600 13px var(--f-mono); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.chip { padding: 2px 8px; border-radius: 999px; border: 1.5px solid currentColor; }
+.code h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 12.5px/1.55 var(--f-mono); overflow-x: auto; white-space: pre; font-variant-ligatures: none; }
+.code .k { color: var(--code-key); } .code .s { color: var(--code-str); } .code .h { font-weight: 600; }
+/* SVG */
+svg text { font-family: var(--f-mono); font-size: 12px; fill: var(--fg); }
+svg .actor text { font-family: var(--f-display); font-weight: 700; font-size: 13.5px; }
+svg .lbl { paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+svg .row { cursor: pointer; transition: opacity .3s; }
+svg .row.future { opacity: .2; }
+svg .row.past { opacity: .7; }
+svg .row .hit { fill: transparent; }
+svg .row.cur .hit { fill: var(--band); }
+svg .row:hover .hit { fill: var(--band); }
+svg .row.cur .res { animation: show .35s ease-out .75s both; }
+svg .row.cur .sbox { animation: pulse 1.4s ease-in-out infinite; }
+svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; letter-spacing: .08em; fill: var(--muted); }
+@keyframes show { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 50% { stroke-width: 3; } }
+@media (prefers-reduced-motion: reduce) { svg .row.cur .res, svg .row.cur .sbox { animation: none; } }
+.legend { color: var(--muted); font-size: 13px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Flux OpenID4VCI minimal</h1>
+    <p>Émission d'une attestation (SD-JWT VC ou mdoc) vers un wallet, réduite aux seuls endpoints et paramètres obligatoires d'OpenID for Verifiable Credential Issuance 1.0. Nonce, différé, notification, PAR et DPoP sont retirés.</p>
+  </header>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Type de grant">
+      <button id="g-pre" aria-pressed="true">Pre-authorized code</button>
+      <button id="g-auth" aria-pressed="false">Authorization code</button>
+    </div>
+    <div class="ctrl">
+      <button id="prev" aria-label="Étape précédente">◀</button>
+      <button id="play" class="play">▶ Lecture</button>
+      <button id="next" aria-label="Étape suivante">▶</button>
+      <button id="reset">Rejouer</button>
+    </div>
+  </div>
+  <div class="progress" id="progress"></div>
+
+  <div class="main">
+    <div class="diagram"><svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagramme de séquence OpenID4VCI"></svg></div>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+  </div>
+  <p class="legend">Flèche pleine : requête. Flèche pointillée : réponse. Cliquer une ligne du diagramme ou la barre de progression pour y aller. Clavier : ← →, espace.</p>
+</div>
+
+<script>
+const ACTORS = { U: { x: 74, name: "Utilisateur" }, W: { x: 234, name: "Wallet" }, AS: { x: 404, name: "Authorization Server" }, CI: { x: 566, name: "Credential Issuer" } };
+const PHASE_COLOR = { "Découverte": "--c-U", "Autorisation": "--c-AS", "Preuve de possession": "--c-W", "Émission": "--c-CI", "Différé": "--c-CI", "Clôture": "--c-U" };
+const ISS = "https://issuer.example.eu";
+const AS_URL = "https://auth.example.eu";
+const CFG = "eu.europa.ec.eudi.pid_vc_sd_jwt";
+
+function buildSteps(grant) {
+  const pre = grant === "pre";
+  const S = [];
+  const grantsJson = pre
+    ? `"grants": {
+    "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
+      "pre-authorized_code": "oaKazRN8I0IbtZ0C7JuMn5"
+    }
+  }`
+    : `"grants": {
+    "authorization_code": {}
+  }`;
+  S.push({ phase: "Découverte", from: "CI", to: "W", req: "Credential Offer", title: "Credential Offer",
+    desc: "L'émetteur transmet l'offre au wallet par un QR code ou un lien openid-credential-offer://. Ce n'est pas un appel d'endpoint : l'offre est passée par valeur.",
+    notes: [pre ? "Grant pré-autorisé : l'utilisateur a déjà été authentifié par l'émetteur." : "Grant authorization code : l'authentification a lieu sur l'Authorization Server.", "Optionnels retirés : tx_code, issuer_state, credential_offer_uri. L'offre elle-même est facultative (flux initié par le wallet)."],
+    reqCode: `openid-credential-offer://?credential_offer=
+{
+  "credential_issuer": "${ISS}",
+  "credential_configuration_ids": ["${CFG}"],
+  ${grantsJson}
+}` });
+  S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata émetteur", res: "200 metadata", title: "Metadata du Credential Issuer",
+    desc: "Seuls credential_issuer, credential_endpoint et credential_configurations_supported sont obligatoires. Aucun nonce_endpoint : la preuve ne portera donc pas de nonce.",
+    notes: ["authorization_servers est optionnel. Absent, l'émetteur joue lui-même le rôle d'Authorization Server ; il est gardé ici pour distinguer les deux rôles.", "proof_types_supported devient obligatoire dès que cryptographic_binding_methods_supported est présent."],
+    reqCode: `GET /.well-known/openid-credential-issuer HTTP/1.1
+Host: issuer.example.eu`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "credential_issuer": "${ISS}",
+  "authorization_servers": ["${AS_URL}"],
+  "credential_endpoint": "${ISS}/credential",
+  "credential_configurations_supported": {
+    "${CFG}": {
+      "format": "dc+sd-jwt",
+      "vct": "urn:eudi:pid:1",
+      "cryptographic_binding_methods_supported": ["jwk"],
+      "proof_types_supported": {
+        "jwt": { "proof_signing_alg_values_supported": ["ES256"] }
+      }
+    }
+  }
+}` });
+  S.push({ phase: "Découverte", from: "W", to: "AS", req: "GET metadata AS", res: "200 metadata", title: "Metadata de l'Authorization Server",
+    desc: "Métadonnées OAuth 2.0 (RFC 8414), nécessaires pour trouver le token endpoint" + (pre ? "." : " et l'authorization endpoint."),
+    notes: ["PAR, DPoP et pre-authorized_grant_anonymous_access_supported sont optionnels et retirés."],
+    reqCode: `GET /.well-known/oauth-authorization-server HTTP/1.1
+Host: auth.example.eu`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "issuer": "${AS_URL}",${pre ? "" : `
+  "authorization_endpoint": "${AS_URL}/authorize",`}
+  "token_endpoint": "${AS_URL}/token"
+}` });
+
+  if (pre) {
+    S.push({ phase: "Autorisation", from: "W", to: "AS", req: "POST /token", res: "200 access_token", title: "Requête token (pré-autorisée)",
+      desc: "Le wallet échange le pre-authorized_code contre un access token. Pas de navigateur, pas de PKCE.",
+      notes: ["Sans tx_code dans l'offre, quiconque récupère le QR code peut obtenir le jeton : c'est le prix du minimum.", "authorization_details dans la réponse est optionnel."],
+      reqCode: `POST /token HTTP/1.1
+Host: auth.example.eu
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code
+&pre-authorized_code=oaKazRN8I0IbtZ0C7JuMn5`,
+      resCode: tokenRes() });
+  } else {
+    S.push({ phase: "Autorisation", from: "U", to: "AS", req: "GET /authorize", res: "page de login", title: "Requête d'autorisation",
+      desc: "Sans PAR, le wallet ouvre le navigateur directement sur l'authorization endpoint avec tous les paramètres. L'utilisateur s'authentifie et consent.",
+      notes: ["La demande d'attestation passe par authorization_details (type openid_credential) ou par un scope.", "PKCE est montré car il est exigé par les bonnes pratiques OAuth (RFC 9700), même si OpenID4VCI ne l'impose pas seul."],
+      reqCode: `GET /authorize?response_type=code
+  &client_id=wallet-dev
+  &redirect_uri=https://wallet.example/cb
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+  &authorization_details=[{"type":"openid_credential",
+     "credential_configuration_id":"${CFG}"}] HTTP/1.1
+Host: auth.example.eu`,
+      resCode: `HTTP/1.1 200 OK
+Content-Type: text/html
+
+<!-- formulaire d'authentification + consentement -->` });
+    S.push({ phase: "Autorisation", from: "AS", to: "W", req: "302 redirect ?code", title: "Retour du code d'autorisation",
+      desc: "L'AS redirige le navigateur vers le redirect_uri du wallet avec le code.",
+      notes: [],
+      reqCode: `HTTP/1.1 302 Found
+Location: https://wallet.example/cb?code=SplxlOBeZQQYbYS6WxSbIA` });
+    S.push({ phase: "Autorisation", from: "W", to: "AS", req: "POST /token", res: "200 access_token", title: "Requête token (authorization code)",
+      desc: "Le wallet échange le code contre un access token, avec le code_verifier PKCE.",
+      notes: ["Pas de DPoP ni de refresh_token dans le minimum."],
+      reqCode: `POST /token HTTP/1.1
+Host: auth.example.eu
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=SplxlOBeZQQYbYS6WxSbIA
+&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+&redirect_uri=https://wallet.example/cb
+&client_id=wallet-dev`,
+      resCode: tokenRes() });
+  }
+
+  S.push({ phase: "Preuve de possession", self: "W", req: "Signe le proof JWT", title: "Construction du proof JWT",
+    desc: "L'attestation est liée à une clé du wallet, donc une preuve de possession est exigée. Sans nonce endpoint, le claim nonce est absent.",
+    notes: ["Obligatoires : typ, alg, la clé (jwk ou kid), aud et iat.", pre ? "iss est omis : accès anonyme pré-autorisé." : "iss = client_id du wallet.", "Sans nonce, l'émetteur ne s'appuie que sur iat pour limiter le rejeu. C'est faible.", "Si l'attestation n'est liée à aucune clé, cette étape disparaît."],
+    reqCode: `// header
+{
+  "typ": "openid4vci-proof+jwt",
+  "alg": "ES256",
+  "jwk": { "kty": "EC", "crv": "P-256", "x": "TCAER19Zvu3OHF4j4W4vfSVoHIP1ILilDls7vCeGemc", "y": "ZxjiWWbZMQGHVWKVQ4hbSIirsVfuecCE6t4jT9F2HZQ" }
+}
+// payload
+{${pre ? "" : `\n  "iss": "wallet-dev",`}
+  "aud": "${ISS}",
+  "iat": 1762716000
+}` });
+  S.push({ phase: "Émission", from: "W", to: "CI", req: "POST /credential", res: "200 credentials", title: "Requête credential",
+    desc: "Le wallet présente l'access token et la preuve. L'émetteur vérifie la signature, l'audience et iat, puis émet l'attestation liée à la clé (champ cnf).",
+    notes: ["C'est le seul endpoint propre à OpenID4VCI qui soit obligatoire.", "Retirés : nonce, deferred_credential, notification, chiffrement de la réponse."],
+    reqCode: `POST /credential HTTP/1.1
+Host: issuer.example.eu
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
+
+{
+  "credential_configuration_id": "${CFG}",
+  "proofs": {
+    "jwt": ["eyJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCIsImFsZyI6IkVTMjU2In0..."]
+  }
+}`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "credentials": [{
+    "credential": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImRjK3NkLWp3dCJ9...~WyJzYWx0IiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0~"
+  }]
+}` });
+  return S;
+
+  function tokenRes() {
+    return `HTTP/1.1 200 OK
+{
+  "access_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}`;
+  }
+}
+
+/* ---------- état ---------- */
+let grant = "pre", deferred = false, steps = [], cur = 0, playing = false, timer = null, anim = 0;
+const svg = document.getElementById("svg"), detail = document.getElementById("detail"), progress = document.getElementById("progress");
+const NS = "http://www.w3.org/2000/svg";
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function color(a) { return `var(--c-${a})`; }
+
+function arrow(g, x1, x2, y, col, dashed, label, cls) {
+  const grp = el("g", cls ? { class: cls } : {}, g);
+  const dir = x2 > x1 ? 1 : -1;
+  el("line", { x1, y1: y, x2: x2 - dir * 7, y2: y, stroke: col, "stroke-width": 2, "stroke-dasharray": dashed ? "5 4" : "none" }, grp);
+  el("polygon", { points: `${x2},${y} ${x2 - dir * 9},${y - 4.5} ${x2 - dir * 9},${y + 4.5}`, fill: col }, grp);
+  el("text", { x: (x1 + x2) / 2, y: y - 7, "text-anchor": "middle", class: "lbl" }, grp, label);
+}
+
+function layout() {
+  let y = 76; const rows = []; let lastPhase = null;
+  steps.forEach(s => {
+    const phaseRow = s.phase !== lastPhase; lastPhase = s.phase;
+    if (phaseRow) y += 20;
+    const h = s.self ? 52 : (s.res ? 62 : 42);
+    rows.push({ y, h, phaseRow }); y += h;
+  });
+  return { rows, H: y + 20 };
+}
+
+function drawSvg() {
+  const { rows, H } = layout();
+  svg.setAttribute("viewBox", `0 0 640 ${H}`);
+  svg.replaceChildren();
+  // lignes de vie
+  for (const k in ACTORS) {
+    const a = ACTORS[k];
+    el("line", { x1: a.x, y1: 54, x2: a.x, y2: H - 8, stroke: "var(--line)", "stroke-width": 1.5, "stroke-dasharray": "3 4" }, svg);
+  }
+  steps.forEach((s, i) => {
+    const r = rows[i];
+    if (r.phaseRow) el("text", { x: 8, y: r.y - 6, class: "phase" }, svg, s.phase.toUpperCase());
+    const g = el("g", { class: "row", "data-i": i, tabindex: -1 }, svg);
+    el("rect", { x: 0, y: r.y, width: 640, height: r.h, class: "hit" }, g);
+    el("text", { x: 8, y: r.y + 22, style: "font-size:10.5px;fill:var(--muted)" }, g, String(i + 1).padStart(2, "0"));
+    if (s.self) {
+      const x = ACTORS[s.self].x;
+      el("rect", { x: x + 10, y: r.y + 10, width: 150, height: 32, rx: 6, fill: "var(--surface)", stroke: color(s.self), "stroke-width": 2, class: "sbox" }, g);
+      el("text", { x: x + 85, y: r.y + 30, "text-anchor": "middle" }, g, s.req);
+    } else {
+      const x1 = ACTORS[s.from].x, x2 = ACTORS[s.to].x, y1 = r.y + 24;
+      arrow(g, x1, x2, y1, color(s.from), false, s.req);
+      if (s.res) arrow(g, x2, x1, y1 + 30, color(s.to), true, s.res, "res");
+    }
+    g.addEventListener("click", () => { stop(); go(i); });
+  });
+  // en-têtes d'acteurs (au-dessus)
+  for (const k in ACTORS) {
+    const a = ACTORS[k], g = el("g", { class: "actor" }, svg);
+    el("rect", { x: a.x - 72, y: 12, width: 144, height: 38, rx: 8, fill: "var(--surface)", stroke: color(k), "stroke-width": 2 }, g);
+    el("text", { x: a.x, y: 36, "text-anchor": "middle", style: `fill:${color(k)}` }, g, a.name);
+  }
+  svg._rows = rows;
+}
+
+function packet() {
+  svg.querySelectorAll(".packet").forEach(p => p.remove());
+  const s = steps[cur], r = svg._rows[cur];
+  if (reduce || s.self) return;
+  const id = ++anim;
+  const x1 = ACTORS[s.from].x, x2 = ACTORS[s.to].x, y = r.y + 24;
+  const dot = el("circle", { r: 6, cy: y, cx: x1, fill: color(s.from), class: "packet" }, svg);
+  const t0 = performance.now(), D = 700;
+  function frame(t) {
+    if (id !== anim) return dot.remove();
+    const e = Math.min(1, (t - t0) / D), k = e < .5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+    if (e < 1 || !s.res) {
+      dot.setAttribute("cx", x1 + (x2 - x1) * k);
+      if (e < 1) return requestAnimationFrame(frame);
+      return setTimeout(() => dot.remove(), 300);
+    }
+    // retour
+    const e2 = Math.min(1, (t - t0 - D - 100) / D);
+    if (e2 < 0) return requestAnimationFrame(frame);
+    const k2 = e2 < .5 ? 2 * e2 * e2 : 1 - Math.pow(-2 * e2 + 2, 2) / 2;
+    dot.setAttribute("cy", y + 30); dot.setAttribute("fill", color(s.to));
+    dot.setAttribute("cx", x2 + (x1 - x2) * k2);
+    if (e2 < 1) requestAnimationFrame(frame); else setTimeout(() => dot.remove(), 300);
+  }
+  requestAnimationFrame(frame);
+}
+
+function esc(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function hl(code) {
+  return esc(code).split("\n").map(line => {
+    if (/^(GET|POST|HTTP\/)/.test(line)) return `<span class="h">${line}</span>`;
+    return line.replace(/("(?:[^"\\]|\\.)*")(\s*:)?/g, (m, s, c) => c ? `<span class="k">${s}</span>${c}` : `<span class="s">${s}</span>`);
+  }).join("\n");
+}
+
+function renderDetail() {
+  const s = steps[cur];
+  const route = s.self
+    ? `<span class="chip" style="color:${color(s.self)}">${ACTORS[s.self].name}</span> <span>calcul local</span>`
+    : `<span class="chip" style="color:${color(s.from)}">${ACTORS[s.from].name}</span> → <span class="chip" style="color:${color(s.to)}">${ACTORS[s.to].name}</span>`;
+  detail.innerHTML = `
+    <div class="eyebrow"><span>${s.phase}</span><span>Étape ${cur + 1} / ${steps.length}</span></div>
+    <h2>${s.title}</h2>
+    <div class="route">${route}</div>
+    <p>${s.desc}</p>
+    ${s.notes?.length ? `<ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
+    <div class="code"><h3>${s.self ? "Proof JWT" : s.res ? "Requête" : "Message"}</h3><pre>${hl(s.reqCode)}</pre></div>
+    ${s.resCode ? `<div class="code"><h3>Réponse</h3><pre>${hl(s.resCode)}</pre></div>` : ""}`;
+}
+
+function renderProgress() {
+  progress.replaceChildren();
+  steps.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.style.background = `var(${PHASE_COLOR[s.phase]})`;
+    b.className = i < cur ? "done" : i === cur ? "cur" : "";
+    b.setAttribute("aria-label", `Étape ${i + 1} : ${s.title}`);
+    b.onclick = () => { stop(); go(i); };
+    progress.appendChild(b);
+  });
+}
+
+function go(i) {
+  cur = Math.max(0, Math.min(steps.length - 1, i));
+  svg.querySelectorAll(".row").forEach((g, j) => {
+    g.classList.remove("past", "cur", "future");
+    void g.getBBox; // relance l'animation CSS
+    g.classList.add(j < cur ? "past" : j === cur ? "cur" : "future");
+  });
+  const curRow = svg.querySelector(".row.cur");
+  if (curRow) { curRow.querySelectorAll(".res, .sbox").forEach(n => { n.style.animation = "none"; n.getBoundingClientRect(); n.style.animation = ""; }); }
+  renderDetail(); renderProgress(); packet();
+}
+
+function rebuild() {
+  stop(); steps = buildSteps(grant); drawSvg(); go(0);
+}
+function tick() {
+  if (cur >= steps.length - 1) { stop(); return; }
+  go(cur + 1); timer = setTimeout(tick, 3800);
+}
+function start() {
+  if (cur >= steps.length - 1) go(0);
+  playing = true; document.getElementById("play").textContent = "❚❚ Pause";
+  timer = setTimeout(tick, 2400);
+}
+function stop() {
+  playing = false; clearTimeout(timer); document.getElementById("play").textContent = "▶ Lecture";
+}
+
+document.getElementById("play").onclick = () => playing ? stop() : start();
+document.getElementById("next").onclick = () => { stop(); go(cur + 1); };
+document.getElementById("prev").onclick = () => { stop(); go(cur - 1); };
+document.getElementById("reset").onclick = () => { stop(); go(0); start(); };
+for (const [id, g] of [["g-pre", "pre"], ["g-auth", "auth"]]) {
+  document.getElementById(id).onclick = () => {
+    grant = g;
+    document.getElementById("g-pre").setAttribute("aria-pressed", g === "pre");
+    document.getElementById("g-auth").setAttribute("aria-pressed", g === "auth");
+    rebuild();
+  };
+}
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, button")) { if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; }
+  if (e.key === "ArrowRight") { stop(); go(cur + 1); }
+  else if (e.key === "ArrowLeft") { stop(); go(cur - 1); }
+  else if (e.key === " ") { e.preventDefault(); playing ? stop() : start(); }
+});
+
+rebuild();
+</script>
+</body>
+</html>
