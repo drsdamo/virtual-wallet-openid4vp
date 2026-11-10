@@ -90,6 +90,9 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
 .gloss dt { font-weight: 600; }
 .gloss dd { margin: 2px 0 0; color: var(--muted); }
 a { color: var(--accent); }
+.fields dt a { color: var(--code-key); }
+.refs h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.refs ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
 </style>
 
 </head>
@@ -118,35 +121,35 @@ a { color: var(--accent); }
   <section class="gloss" id="glossaire">
     <h2>Glossaire</h2>
     <dl>
-      <div><dt>OpenID4VCI</dt><dd>OpenID for Verifiable Credential Issuance. Protocole, bâti sur OAuth 2.0, par lequel un émetteur dépose une attestation dans un wallet.</dd></div>
-      <div><dt>OpenID4VP</dt><dd>OpenID for Verifiable Presentations. Protocole par lequel un wallet présente une attestation à un verifier.</dd></div>
+      <div><dt>OpenID4VCI</dt><dd>OpenID for Verifiable Credential Issuance. Protocole, bâti sur OAuth 2.0, par lequel un émetteur dépose une attestation dans un wallet. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>OpenID4VP</dt><dd>OpenID for Verifiable Presentations. Protocole par lequel un wallet présente une attestation à un verifier. <a href="https://openid.net/specs/openid-4-verifiable-presentations-1_0.html" target="_blank" rel="noopener">Référence</a></dd></div>
       <div><dt>Wallet</dt><dd>Application de l'utilisateur qui stocke ses attestations et les clés qui y sont liées.</dd></div>
       <div><dt>Émetteur (Credential Issuer)</dt><dd>Celui qui signe et délivre l'attestation. Ici, l'application.</dd></div>
       <div><dt>Authorization Server (AS)</dt><dd>Serveur OAuth qui délivre l'access token. Peut être l'émetteur lui-même.</dd></div>
       <div><dt>Verifier</dt><dd>Celui qui demande et vérifie une présentation. Ici, l'application au moment de la connexion.</dd></div>
       <div><dt>Attestation (Verifiable Credential)</dt><dd>Ensemble d'informations (claims) signé par un émetteur, vérifiable par n'importe qui avec sa clé publique.</dd></div>
       <div><dt>Claim</dt><dd>Une information portée par l'attestation, par exemple account_id.</dd></div>
-      <div><dt>SD-JWT VC</dt><dd>Format d'attestation basé sur JWT où chaque claim peut être divulgué ou non (Selective Disclosure).</dd></div>
-      <div><dt>Disclosure</dt><dd>Morceau d'un SD-JWT, après un ~, qui révèle un claim. Le wallet n'envoie que celles qu'il veut montrer.</dd></div>
+      <div><dt>SD-JWT VC</dt><dd>Format d'attestation basé sur JWT où chaque claim peut être divulgué ou non (Selective Disclosure). <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Disclosure</dt><dd>Morceau d'un SD-JWT, après un ~, qui révèle un claim. Le wallet n'envoie que celles qu'il veut montrer. <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-disclosure-jwt/" target="_blank" rel="noopener">Référence</a></dd></div>
       <div><dt>mdoc</dt><dd>Autre format d'attestation (ISO 18013-5, permis mobile), encodé en CBOR.</dd></div>
-      <div><dt>Credential Offer</dt><dd>Message de l'émetteur au wallet qui annonce une attestation disponible et comment l'obtenir.</dd></div>
+      <div><dt>Credential Offer</dt><dd>Message de l'émetteur au wallet qui annonce une attestation disponible et comment l'obtenir. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-offer" target="_blank" rel="noopener">Référence</a></dd></div>
       <div><dt>Credential configuration</dt><dd>Une entrée du catalogue de l'émetteur : format, type et règles d'une attestation.</dd></div>
       <div><dt>vct</dt><dd>Verifiable Credential Type : identifiant du type d'une attestation SD-JWT VC.</dd></div>
-      <div><dt>Grant</dt><dd>Terme OAuth : la façon d'obtenir un access token (code d'autorisation, pré-autorisé…).</dd></div>
-      <div><dt>Pre-authorized code</dt><dd>Code fourni dans l'offre quand l'utilisateur est déjà authentifié. Échangé directement contre un access token.</dd></div>
-      <div><dt>tx_code</dt><dd>Code de transaction optionnel envoyé par un autre canal (SMS…). Protège le pre-authorized code s'il est intercepté.</dd></div>
-      <div><dt>Access token</dt><dd>Jeton temporaire qui autorise le wallet à appeler le credential endpoint.</dd></div>
+      <div><dt>Grant</dt><dd>Terme OAuth : la façon d'obtenir un access token (code d'autorisation, pré-autorisé…). <a href="https://www.rfc-editor.org/rfc/rfc6749#section-1.3" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Pre-authorized code</dt><dd>Code fourni dans l'offre quand l'utilisateur est déjà authentifié. Échangé directement contre un access token. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#pre-authz-code-flow" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>tx_code</dt><dd>Code de transaction optionnel envoyé par un autre canal (SMS…). Protège le pre-authorized code s'il est intercepté. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-offer-parameters" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Access token</dt><dd>Jeton temporaire qui autorise le wallet à appeler le credential endpoint. <a href="https://www.rfc-editor.org/rfc/rfc6749#section-1.4" target="_blank" rel="noopener">Référence</a></dd></div>
       <div><dt>Endpoint</dt><dd>URL d'un serveur qui reçoit un type de requête précis (token, credential…).</dd></div>
-      <div><dt>Metadata / .well-known</dt><dd>Document JSON publié à une adresse standard, qui décrit les endpoints et capacités d'un serveur.</dd></div>
-      <div><dt>JWT</dt><dd>JSON Web Token : header, payload et signature encodés en base64url, séparés par des points.</dd></div>
-      <div><dt>JWK</dt><dd>JSON Web Key : une clé cryptographique écrite en JSON.</dd></div>
-      <div><dt>ES256</dt><dd>Signature ECDSA sur la courbe P-256 avec SHA-256.</dd></div>
-      <div><dt>Proof JWT (preuve de possession)</dt><dd>JWT signé par le wallet qui prouve qu'il détient la clé privée à lier à l'attestation.</dd></div>
-      <div><dt>Holder binding / cnf</dt><dd>Lien entre l'attestation et une clé du wallet, inscrit dans le claim cnf. Une copie de l'attestation est inutile sans la clé.</dd></div>
-      <div><dt>Nonce / c_nonce</dt><dd>Valeur aléatoire à usage unique à signer, pour prouver que la signature est récente et empêcher le rejeu.</dd></div>
-      <div><dt>KB-JWT</dt><dd>Key Binding JWT : ajouté à la fin d'un SD-JWT présenté, signé par la clé cnf avec le nonce du verifier.</dd></div>
-      <div><dt>DCQL</dt><dd>Digital Credentials Query Language : format JSON de la requête OpenID4VP qui décrit les attestations voulues.</dd></div>
-      <div><dt>PKCE, PAR, DPoP</dt><dd>Protections OAuth optionnelles ici, absentes de ce flux minimal : lien code/wallet, requête poussée côté serveur, jeton lié à une clé.</dd></div>
+      <div><dt>Metadata / .well-known</dt><dd>Document JSON publié à une adresse standard, qui décrit les endpoints et capacités d'un serveur. <a href="https://www.rfc-editor.org/rfc/rfc8615" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>JWT</dt><dd>JSON Web Token : header, payload et signature encodés en base64url, séparés par des points. <a href="https://www.rfc-editor.org/rfc/rfc7519" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>JWK</dt><dd>JSON Web Key : une clé cryptographique écrite en JSON. <a href="https://www.rfc-editor.org/rfc/rfc7517" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>ES256</dt><dd>Signature ECDSA sur la courbe P-256 avec SHA-256. <a href="https://www.rfc-editor.org/rfc/rfc7518#section-3.4" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Proof JWT (preuve de possession)</dt><dd>JWT signé par le wallet qui prouve qu'il détient la clé privée à lier à l'attestation. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#jwt-proof-type" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Holder binding / cnf</dt><dd>Lien entre l'attestation et une clé du wallet, inscrit dans le claim cnf. Une copie de l'attestation est inutile sans la clé. <a href="https://www.rfc-editor.org/rfc/rfc7800" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Nonce / c_nonce</dt><dd>Valeur aléatoire à usage unique à signer, pour prouver que la signature est récente et empêcher le rejeu. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#nonce-endpoint" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>KB-JWT</dt><dd>Key Binding JWT : ajouté à la fin d'un SD-JWT présenté, signé par la clé cnf avec le nonce du verifier. <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-disclosure-jwt/" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>DCQL</dt><dd>Digital Credentials Query Language : format JSON de la requête OpenID4VP qui décrit les attestations voulues. <a href="https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#dcql_query" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>PKCE, PAR, DPoP</dt><dd>Protections OAuth optionnelles ici, absentes de ce flux minimal : lien code/wallet, requête poussée côté serveur, jeton lié à une clé. <a href="https://www.rfc-editor.org/rfc/rfc7636" target="_blank" rel="noopener">RFC 7636</a> <a href="https://www.rfc-editor.org/rfc/rfc9126" target="_blank" rel="noopener">RFC 9126</a> <a href="https://www.rfc-editor.org/rfc/rfc9449" target="_blank" rel="noopener">RFC 9449</a></dd></div>
     </dl>
   </section>
 
@@ -158,6 +161,41 @@ const PHASE_COLOR = { "Enrôlement": "--c-U", "Découverte": "--c-U", "Autorisat
 const ISS = "https://app.example.fr";
 const AS_URL = "https://auth.example.eu";
 const CFG = "compte_wallet";
+
+const VCI = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#";
+const VP = "https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#";
+const RFC = n => `https://www.rfc-editor.org/rfc/rfc${n}`;
+const REFS = {
+  "Demande d'enrôlement": [["OpenID4VCI · Pre-Authorized Code Flow", VCI + "pre-authz-code-flow"], ["OpenID4VCI · Sécurité du Pre-Authorized Code Flow", VCI + "security-considerations-pre-authz-code"]],
+  "Credential Offer": [["OpenID4VCI · Credential Offer", VCI + "credential-offer"], ["OpenID4VCI · Credential Offer Parameters", VCI + "credential-offer-parameters"], ["OpenID4VCI · Sécurité de la Credential Offer", VCI + "credential-offer-security"]],
+  "Metadata de l'émetteur": [["OpenID4VCI · Credential Issuer Metadata Retrieval", VCI + "credential-issuer-wellknown"], ["OpenID4VCI · Credential Issuer Metadata Parameters", VCI + "credential-issuer-parameters"], ["OpenID4VCI · Profil IETF SD-JWT VC (metadata)", VCI + "server-metadata-sd-jwt-vc"]],
+  "Metadata OAuth de l'application": [["OpenID4VCI · OAuth 2.0 Authorization Server Metadata", VCI + "as-metadata"], ["RFC 8414 · OAuth 2.0 Authorization Server Metadata", RFC(8414) + "#section-3"]],
+  "Requête token": [["OpenID4VCI · Token Request", VCI + "token-request"], ["OpenID4VCI · Successful Token Response", VCI + "token-response"], ["RFC 6750 · Bearer Token", RFC(6750)]],
+  "Construction du proof JWT": [["OpenID4VCI · Proof type jwt", VCI + "jwt-proof-type"], ["OpenID4VCI · Verifying Proof", VCI + "verifying-key-proof"], ["OpenID4VCI · Proof replay", VCI + "key-proof-replay"], ["OpenID4VCI · Nonce Endpoint (optionnel)", VCI + "nonce-endpoint"]],
+  "Émission de l'attestation de compte": [["OpenID4VCI · Credential Request", VCI + "credential-request"], ["OpenID4VCI · Credential Response", VCI + "credential-response"], ["OpenID4VCI · Liaison de l'attestation au détenteur", VCI + "credential-binding"], ["RFC 7800 · Claim cnf", RFC(7800) + "#section-3"]],
+  "Demande de présentation": [["OpenID4VP · Authorization Request", VP + "vp_token_request"], ["OpenID4VP · Client Identifier Prefixes", VP + "client_identifier_prefixes"], ["OpenID4VP · DCQL", VP + "dcql_query"], ["OpenID4VP · Preventing Replay", VP + "preventing-replay"]],
+  "Présentation et identification": [["OpenID4VP · Response Parameters", VP + "response-parameters"], ["OpenID4VP · Response Mode direct_post", VP + "response_mode_post"], ["OpenID4VP · Authentification par attestation", VP + "end-user-authentication-using-credentials"]]
+};
+const FIELD_REF = {
+  "credential_offer": VCI + "credential-offer-parameters", "credential_configuration_ids": VCI + "credential-offer-parameters",
+  "grants": VCI + "credential-offer-parameters", "urn:…:pre-authorized_code": VCI + "credential-offer-parameters",
+  "Credential Offer|pre-authorized_code": VCI + "credential-offer-parameters", "Requête token|pre-authorized_code": VCI + "token-request",
+  "Credential Offer|credential_issuer": VCI + "credential-issuer-identifier", "Metadata de l'émetteur|credential_issuer": VCI + "credential-issuer-parameters",
+  "/.well-known/openid-credential-issuer": VCI + "credential-issuer-wellknown",
+  "credential_endpoint": VCI + "credential-issuer-parameters", "credential_configurations_supported": VCI + "credential-issuer-parameters",
+  "format": VCI + "credential-issuer-parameters", "cryptographic_binding_methods_supported": VCI + "credential-issuer-parameters",
+  "proof_types_supported": VCI + "credential-issuer-parameters", "proof_signing_alg_values_supported": VCI + "credential-issuer-parameters",
+  "Metadata de l'émetteur|vct": VCI + "server-metadata-sd-jwt-vc",
+  "/.well-known/oauth-authorization-server": RFC(8414) + "#section-3", "issuer": RFC(8414) + "#section-2", "token_endpoint": RFC(8414) + "#section-2",
+  "grant_type": VCI + "token-request", "access_token": VCI + "token-response", "token_type": VCI + "token-response", "expires_in": VCI + "token-response",
+  "typ": VCI + "jwt-proof-type", "alg": VCI + "jwt-proof-type", "jwk": VCI + "jwt-proof-type", "aud": VCI + "jwt-proof-type",
+  "Construction du proof JWT|iat": VCI + "jwt-proof-type", "signature": VCI + "verifying-key-proof",
+  "Authorization: Bearer": RFC(6750) + "#section-2.1", "credential_configuration_id": VCI + "credential-request", "proofs.jwt": VCI + "credential-request",
+  "credentials[].credential": VCI + "credential-response", "cnf": RFC(7800) + "#section-3",
+  "client_id": VP + "client_identifier_prefixes", "request_uri": RFC(9101) + "#section-5.2", "response_type": VP + "response_type_vp_token",
+  "nonce": VP + "preventing-replay", "dcql_query": VP + "dcql_query", "meta.vct_values": VP + "sd_jwt_vc_meta_parameter",
+  "claims[].path": VP + "claims_query", "vp_token": VP + "response-parameters", "…~eyJ0eXAiOiJrYitqd3Qi…": VP + "preventing-replay"
+};
 
 const FIELDS = {
   "Demande d'enrôlement": [
@@ -369,7 +407,7 @@ vp_token={"compte":["eyJhbGciOiJFUzI1NiIs...~eyJ0eXAiOiJrYitqd3Qi..."]}
 {
   "redirect_uri": "https://app.example.fr/accueil#session=..."
 }` });
-  return S.map(s => ({ ...s, fields: FIELDS[s.title] || [] }));
+  return S.map(s => ({ ...s, fields: FIELDS[s.title] || [], refs: REFS[s.title] || [] }));
 }
 
 /* ---------- état ---------- */
@@ -489,7 +527,8 @@ function renderDetail() {
     ${s.notes?.length ? `<ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
     <div class="code"><h3>${s.self ? "Proof JWT" : s.res ? "Requête" : "Message"}</h3><pre>${hl(s.reqCode)}</pre></div>
     ${s.resCode ? `<div class="code"><h3>Réponse</h3><pre>${hl(s.resCode)}</pre></div>` : ""}
-    ${s.fields.length ? `<div class="fields"><h3>Rôle des champs</h3><dl>${s.fields.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl></div>` : ""}`;
+    ${s.fields.length ? `<div class="fields"><h3>Rôle des champs</h3><dl>${s.fields.map(([k, v]) => { const u = FIELD_REF[s.title + "|" + k] || FIELD_REF[k]; return `<div><dt>${u ? `<a href="${u}" target="_blank" rel="noopener">${esc(k)}</a>` : esc(k)}</dt><dd>${v}</dd></div>`; }).join("")}</dl></div>` : ""}
+    ${s.refs.length ? `<div class="refs"><h3>Dans la spécification</h3><ul>${s.refs.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${t}</a></li>`).join("")}</ul></div>` : ""}`;
 }
 
 function renderProgress() {
