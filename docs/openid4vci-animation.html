@@ -77,6 +77,19 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
 @keyframes pulse { 50% { stroke-width: 3; } }
 @media (prefers-reduced-motion: reduce) { svg .row.cur .res, svg .row.cur .sbox { animation: none; } }
 .legend { color: var(--muted); font-size: 13px; }
+.fields h3, .gloss h2 { margin: 0 0 6px; }
+.fields h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.fields dl { margin: 0; display: grid; gap: 0; border-top: 1px solid var(--line); }
+.fields dl > div { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 4px 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.fields dt { font: 600 12.5px var(--f-mono); color: var(--code-key); overflow-wrap: anywhere; }
+.fields dd { margin: 0; font-size: 14px; }
+@media (max-width: 520px) { .fields dl > div { grid-template-columns: minmax(0, 1fr); } }
+.gloss { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; scroll-margin-top: 12px; }
+.gloss h2 { font-family: var(--f-display); font-size: 24px; }
+.gloss dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px 28px; }
+.gloss dt { font-weight: 600; }
+.gloss dd { margin: 2px 0 0; color: var(--muted); }
+a { color: var(--accent); }
 </style>
 
 </head>
@@ -84,7 +97,7 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
 <div class="wrap">
   <header>
     <h1>Enrôlement wallet OpenID4VCI</h1>
-    <p>Un utilisateur déjà connecté à l'application y enrôle son wallet : l'application lui émet, par OpenID4VCI (grant pré-autorisé, endpoints obligatoires uniquement), une attestation contenant un identifiant de compte. Cette attestation servira ensuite à se connecter par OpenID4VP.</p>
+    <p>Un utilisateur déjà connecté à l'application y enrôle son wallet : l'application lui émet, par OpenID4VCI (grant pré-autorisé, endpoints obligatoires uniquement), une attestation contenant un identifiant de compte. Cette attestation servira ensuite à se connecter par OpenID4VP. <a href="#glossaire">Voir le glossaire</a>.</p>
   </header>
 
   <div class="bar">
@@ -102,6 +115,41 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
     <aside class="detail" id="detail" aria-live="polite"></aside>
   </div>
   <p class="legend">Flèche pleine : requête. Flèche pointillée : réponse. Cliquer une ligne du diagramme ou la barre de progression pour y aller. Clavier : ← →, espace.</p>
+  <section class="gloss" id="glossaire">
+    <h2>Glossaire</h2>
+    <dl>
+      <div><dt>OpenID4VCI</dt><dd>OpenID for Verifiable Credential Issuance. Protocole, bâti sur OAuth 2.0, par lequel un émetteur dépose une attestation dans un wallet.</dd></div>
+      <div><dt>OpenID4VP</dt><dd>OpenID for Verifiable Presentations. Protocole par lequel un wallet présente une attestation à un verifier.</dd></div>
+      <div><dt>Wallet</dt><dd>Application de l'utilisateur qui stocke ses attestations et les clés qui y sont liées.</dd></div>
+      <div><dt>Émetteur (Credential Issuer)</dt><dd>Celui qui signe et délivre l'attestation. Ici, l'application.</dd></div>
+      <div><dt>Authorization Server (AS)</dt><dd>Serveur OAuth qui délivre l'access token. Peut être l'émetteur lui-même.</dd></div>
+      <div><dt>Verifier</dt><dd>Celui qui demande et vérifie une présentation. Ici, l'application au moment de la connexion.</dd></div>
+      <div><dt>Attestation (Verifiable Credential)</dt><dd>Ensemble d'informations (claims) signé par un émetteur, vérifiable par n'importe qui avec sa clé publique.</dd></div>
+      <div><dt>Claim</dt><dd>Une information portée par l'attestation, par exemple account_id.</dd></div>
+      <div><dt>SD-JWT VC</dt><dd>Format d'attestation basé sur JWT où chaque claim peut être divulgué ou non (Selective Disclosure).</dd></div>
+      <div><dt>Disclosure</dt><dd>Morceau d'un SD-JWT, après un ~, qui révèle un claim. Le wallet n'envoie que celles qu'il veut montrer.</dd></div>
+      <div><dt>mdoc</dt><dd>Autre format d'attestation (ISO 18013-5, permis mobile), encodé en CBOR.</dd></div>
+      <div><dt>Credential Offer</dt><dd>Message de l'émetteur au wallet qui annonce une attestation disponible et comment l'obtenir.</dd></div>
+      <div><dt>Credential configuration</dt><dd>Une entrée du catalogue de l'émetteur : format, type et règles d'une attestation.</dd></div>
+      <div><dt>vct</dt><dd>Verifiable Credential Type : identifiant du type d'une attestation SD-JWT VC.</dd></div>
+      <div><dt>Grant</dt><dd>Terme OAuth : la façon d'obtenir un access token (code d'autorisation, pré-autorisé…).</dd></div>
+      <div><dt>Pre-authorized code</dt><dd>Code fourni dans l'offre quand l'utilisateur est déjà authentifié. Échangé directement contre un access token.</dd></div>
+      <div><dt>tx_code</dt><dd>Code de transaction optionnel envoyé par un autre canal (SMS…). Protège le pre-authorized code s'il est intercepté.</dd></div>
+      <div><dt>Access token</dt><dd>Jeton temporaire qui autorise le wallet à appeler le credential endpoint.</dd></div>
+      <div><dt>Endpoint</dt><dd>URL d'un serveur qui reçoit un type de requête précis (token, credential…).</dd></div>
+      <div><dt>Metadata / .well-known</dt><dd>Document JSON publié à une adresse standard, qui décrit les endpoints et capacités d'un serveur.</dd></div>
+      <div><dt>JWT</dt><dd>JSON Web Token : header, payload et signature encodés en base64url, séparés par des points.</dd></div>
+      <div><dt>JWK</dt><dd>JSON Web Key : une clé cryptographique écrite en JSON.</dd></div>
+      <div><dt>ES256</dt><dd>Signature ECDSA sur la courbe P-256 avec SHA-256.</dd></div>
+      <div><dt>Proof JWT (preuve de possession)</dt><dd>JWT signé par le wallet qui prouve qu'il détient la clé privée à lier à l'attestation.</dd></div>
+      <div><dt>Holder binding / cnf</dt><dd>Lien entre l'attestation et une clé du wallet, inscrit dans le claim cnf. Une copie de l'attestation est inutile sans la clé.</dd></div>
+      <div><dt>Nonce / c_nonce</dt><dd>Valeur aléatoire à usage unique à signer, pour prouver que la signature est récente et empêcher le rejeu.</dd></div>
+      <div><dt>KB-JWT</dt><dd>Key Binding JWT : ajouté à la fin d'un SD-JWT présenté, signé par la clé cnf avec le nonce du verifier.</dd></div>
+      <div><dt>DCQL</dt><dd>Digital Credentials Query Language : format JSON de la requête OpenID4VP qui décrit les attestations voulues.</dd></div>
+      <div><dt>PKCE, PAR, DPoP</dt><dd>Protections OAuth optionnelles ici, absentes de ce flux minimal : lien code/wallet, requête poussée côté serveur, jeton lié à une clé.</dd></div>
+    </dl>
+  </section>
+
 </div>
 
 <script>
@@ -110,6 +158,71 @@ const PHASE_COLOR = { "Enrôlement": "--c-U", "Découverte": "--c-U", "Autorisat
 const ISS = "https://app.example.fr";
 const AS_URL = "https://auth.example.eu";
 const CFG = "compte_wallet";
+
+const FIELDS = {
+  "Demande d'enrôlement": [
+    ["Cookie: SESSION", "Prouve que l'utilisateur est déjà connecté. L'application sait ainsi à quel compte rattacher le wallet."],
+    ["QR code", "Contient la Credential Offer de l'étape suivante, que le wallet va lire."]],
+  "Credential Offer": [
+    ["openid-credential-offer://", "Schéma d'URL qui ouvre le wallet installé sur le téléphone."],
+    ["credential_offer", "L'offre elle-même, en JSON encodé dans l'URL (passage par valeur)."],
+    ["credential_issuer", "URL qui identifie l'émetteur. Le wallet s'en sert pour trouver ses metadata."],
+    ["credential_configuration_ids", "Le ou les types d'attestation proposés. Ce sont des clés du catalogue publié dans les metadata."],
+    ["grants", "Comment le wallet obtiendra son access token."],
+    ["urn:…:pre-authorized_code", "Type de grant : l'utilisateur a déjà été authentifié, aucune connexion supplémentaire."],
+    ["pre-authorized_code", "Code secret à usage unique, échangé contre un access token. Qui le détient peut obtenir l'attestation."]],
+  "Metadata de l'émetteur": [
+    ["/.well-known/openid-credential-issuer", "Adresse standard des metadata, construite à partir de credential_issuer."],
+    ["credential_issuer", "Doit être identique à celui de l'offre, sinon le wallet refuse."],
+    ["credential_endpoint", "URL où le wallet demandera l'attestation."],
+    ["credential_configurations_supported", "Catalogue des attestations émises, indexé par identifiant (ici compte_wallet)."],
+    ["format", "Format de l'attestation : dc+sd-jwt pour SD-JWT VC, mso_mdoc pour mdoc."],
+    ["vct", "Type de l'attestation (Verifiable Credential Type). Le verifier l'utilisera pour la demander."],
+    ["cryptographic_binding_methods_supported", "Comment l'attestation est liée à une clé du wallet. jwk : la clé publique est incluse telle quelle."],
+    ["proof_types_supported", "Formes de preuve de possession acceptées (ici un JWT signé)."],
+    ["proof_signing_alg_values_supported", "Algorithmes de signature acceptés pour la preuve. ES256 = ECDSA sur P-256 avec SHA-256."]],
+  "Metadata OAuth de l'application": [
+    ["/.well-known/oauth-authorization-server", "Adresse standard des metadata OAuth (RFC 8414)."],
+    ["issuer", "Identifiant de l'Authorization Server, ici l'application elle-même."],
+    ["token_endpoint", "URL où échanger le pre-authorized_code contre un access token."]],
+  "Requête token": [
+    ["grant_type", "Type d'échange demandé : le grant pré-autorisé défini par OpenID4VCI."],
+    ["pre-authorized_code", "Le code reçu dans l'offre. L'application l'invalide dès qu'il est utilisé."],
+    ["access_token", "Jeton à envoyer au credential endpoint dans le header Authorization."],
+    ["token_type", "Bearer : quiconque possède le jeton peut l'utiliser, d'où sa durée de vie courte."],
+    ["expires_in", "Durée de validité du jeton, en secondes."]],
+  "Construction du proof JWT": [
+    ["typ", "Type du JWT. openid4vci-proof+jwt empêche qu'un autre JWT soit accepté comme preuve."],
+    ["alg", "Algorithme de signature utilisé."],
+    ["jwk", "Clé publique du wallet. C'est elle qui sera inscrite dans l'attestation."],
+    ["aud", "Destinataire de la preuve : l'émetteur. Empêche de la réutiliser chez un autre émetteur."],
+    ["iat", "Date de création, en secondes depuis 1970. L'émetteur refuse une preuve trop ancienne."],
+    ["signature", "Faite avec la clé privée correspondant à jwk : elle prouve que le wallet possède cette clé."]],
+  "Émission de l'attestation de compte": [
+    ["Authorization: Bearer", "L'access token obtenu au token endpoint."],
+    ["credential_configuration_id", "L'attestation demandée, prise dans le catalogue des metadata."],
+    ["proofs.jwt", "Liste de proof JWT, une par clé à lier (une seule ici)."],
+    ["credentials[].credential", "L'attestation SD-JWT : un JWT signé, suivi de disclosures séparées par ~."],
+    ["iss", "L'émetteur qui a signé l'attestation."],
+    ["vct", "Le type d'attestation, repris des metadata."],
+    ["account_id", "Claim métier choisi par l'application, non défini par la spec : l'identifiant qui retrouvera le compte."],
+    ["iat", "Date d'émission."],
+    ["cnf", "Confirmation : la clé publique du wallet. Seul le détenteur de la clé privée pourra présenter l'attestation."]],
+  "Demande de présentation": [
+    ["openid4vp://", "Schéma d'URL qui ouvre le wallet pour une présentation."],
+    ["client_id", "Identité du verifier. Le préfixe x509_san_dns: indique qu'elle est prouvée par un certificat."],
+    ["request_uri", "URL où le wallet télécharge la requête complète, signée par le verifier."],
+    ["response_type", "vp_token : le verifier attend une présentation d'attestation."],
+    ["nonce", "Valeur aléatoire que le wallet devra signer. Empêche de rejouer une ancienne présentation."],
+    ["dcql_query", "Requête en DCQL décrivant les attestations voulues."],
+    ["meta.vct_values", "Filtre sur le type d'attestation accepté."],
+    ["claims[].path", "Claims que le wallet doit divulguer (ici account_id)."]],
+  "Présentation et identification": [
+    ["vp_token", "Les présentations, indexées par l'id de la requête DCQL (compte)."],
+    ["…~eyJ0eXAiOiJrYitqd3Qi…", "Le KB-JWT final, signé par la clé cnf. Il contient le nonce et l'aud du verifier."],
+    ["state", "Relie la réponse à la requête initiale."],
+    ["redirect_uri", "Page où le navigateur continue, avec la session ouverte."]]
+};
 
 function buildSteps() {
   const S = [];
@@ -256,7 +369,7 @@ vp_token={"compte":["eyJhbGciOiJFUzI1NiIs...~eyJ0eXAiOiJrYitqd3Qi..."]}
 {
   "redirect_uri": "https://app.example.fr/accueil#session=..."
 }` });
-  return S;
+  return S.map(s => ({ ...s, fields: FIELDS[s.title] || [] }));
 }
 
 /* ---------- état ---------- */
@@ -375,7 +488,8 @@ function renderDetail() {
     <p>${s.desc}</p>
     ${s.notes?.length ? `<ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
     <div class="code"><h3>${s.self ? "Proof JWT" : s.res ? "Requête" : "Message"}</h3><pre>${hl(s.reqCode)}</pre></div>
-    ${s.resCode ? `<div class="code"><h3>Réponse</h3><pre>${hl(s.resCode)}</pre></div>` : ""}`;
+    ${s.resCode ? `<div class="code"><h3>Réponse</h3><pre>${hl(s.resCode)}</pre></div>` : ""}
+    ${s.fields.length ? `<div class="fields"><h3>Rôle des champs</h3><dl>${s.fields.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl></div>` : ""}`;
 }
 
 function renderProgress() {
