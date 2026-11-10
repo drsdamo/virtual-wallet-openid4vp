@@ -90,6 +90,7 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
 .gloss dt { font-weight: 600; }
 .gloss dd { margin: 2px 0 0; color: var(--muted); }
 a { color: var(--accent); }
+.opt { font: 600 11px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border: 1.5px dashed var(--muted); border-radius: 999px; padding: 2px 8px; vertical-align: middle; }
 .fields dt a { color: var(--code-key); }
 .refs h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
 .refs ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
@@ -100,10 +101,11 @@ a { color: var(--accent); }
 <div class="wrap">
   <header>
     <h1>Enrôlement wallet OpenID4VCI</h1>
-    <p>Un utilisateur déjà connecté à l'application y enrôle son wallet : l'application lui émet, par OpenID4VCI (grant pré-autorisé, endpoints obligatoires uniquement), une attestation contenant un identifiant de compte. Cette attestation servira ensuite à se connecter par OpenID4VP. <a href="#glossaire">Voir le glossaire</a>.</p>
+    <p>Un utilisateur déjà connecté à l'application y enrôle son wallet : l'application lui émet, par OpenID4VCI (grant pré-autorisé, endpoints obligatoires, plus le nonce endpoint optionnel), une attestation contenant un identifiant de compte. Cette attestation servira ensuite à se connecter par OpenID4VP. <a href="#glossaire">Voir le glossaire</a>.</p>
   </header>
 
   <div class="bar">
+    <label class="chk"><input type="checkbox" id="nonce" checked> Nonce endpoint (optionnel)</label>
     <div class="ctrl">
       <button id="prev" aria-label="Étape précédente">◀</button>
       <button id="play" class="play">▶ Lecture</button>
@@ -171,6 +173,7 @@ const REFS = {
   "Metadata de l'émetteur": [["OpenID4VCI · Credential Issuer Metadata Retrieval", VCI + "credential-issuer-wellknown"], ["OpenID4VCI · Credential Issuer Metadata Parameters", VCI + "credential-issuer-parameters"], ["OpenID4VCI · Profil IETF SD-JWT VC (metadata)", VCI + "server-metadata-sd-jwt-vc"]],
   "Metadata OAuth de l'application": [["OpenID4VCI · OAuth 2.0 Authorization Server Metadata", VCI + "as-metadata"], ["RFC 8414 · OAuth 2.0 Authorization Server Metadata", RFC(8414) + "#section-3"]],
   "Requête token": [["OpenID4VCI · Token Request", VCI + "token-request"], ["OpenID4VCI · Successful Token Response", VCI + "token-response"], ["RFC 6750 · Bearer Token", RFC(6750)]],
+  "Nonce endpoint": [["OpenID4VCI · Nonce Endpoint", VCI + "nonce-endpoint"], ["OpenID4VCI · Nonce Request", VCI + "nonce-request"], ["OpenID4VCI · Nonce Response", VCI + "nonce-response"]],
   "Construction du proof JWT": [["OpenID4VCI · Proof type jwt", VCI + "jwt-proof-type"], ["OpenID4VCI · Verifying Proof", VCI + "verifying-key-proof"], ["OpenID4VCI · Proof replay", VCI + "key-proof-replay"], ["OpenID4VCI · Nonce Endpoint (optionnel)", VCI + "nonce-endpoint"]],
   "Émission de l'attestation de compte": [["OpenID4VCI · Credential Request", VCI + "credential-request"], ["OpenID4VCI · Credential Response", VCI + "credential-response"], ["OpenID4VCI · Liaison de l'attestation au détenteur", VCI + "credential-binding"], ["RFC 7800 · Claim cnf", RFC(7800) + "#section-3"]],
   "Demande de présentation": [["OpenID4VP · Authorization Request", VP + "vp_token_request"], ["OpenID4VP · Client Identifier Prefixes", VP + "client_identifier_prefixes"], ["OpenID4VP · DCQL", VP + "dcql_query"], ["OpenID4VP · Preventing Replay", VP + "preventing-replay"]],
@@ -189,7 +192,7 @@ const FIELD_REF = {
   "/.well-known/oauth-authorization-server": RFC(8414) + "#section-3", "issuer": RFC(8414) + "#section-2", "token_endpoint": RFC(8414) + "#section-2",
   "grant_type": VCI + "token-request", "access_token": VCI + "token-response", "token_type": VCI + "token-response", "expires_in": VCI + "token-response",
   "typ": VCI + "jwt-proof-type", "alg": VCI + "jwt-proof-type", "jwk": VCI + "jwt-proof-type", "aud": VCI + "jwt-proof-type",
-  "Construction du proof JWT|iat": VCI + "jwt-proof-type", "signature": VCI + "verifying-key-proof",
+  "Construction du proof JWT|iat": VCI + "jwt-proof-type", "Construction du proof JWT|nonce": VCI + "jwt-proof-type", "c_nonce": VCI + "nonce-response", "/nonce": VCI + "nonce-request", "nonce_endpoint": VCI + "credential-issuer-parameters", "signature": VCI + "verifying-key-proof",
   "Authorization: Bearer": RFC(6750) + "#section-2.1", "credential_configuration_id": VCI + "credential-request", "proofs.jwt": VCI + "credential-request",
   "credentials[].credential": VCI + "credential-response", "cnf": RFC(7800) + "#section-3",
   "client_id": VP + "client_identifier_prefixes", "request_uri": RFC(9101) + "#section-5.2", "response_type": VP + "response_type_vp_token",
@@ -198,6 +201,10 @@ const FIELD_REF = {
 };
 
 const FIELDS = {
+  "Nonce endpoint": [
+    ["/nonce", "Endpoint de l'émetteur, annoncé par nonce_endpoint dans les metadata. Requête POST sans paramètre."],
+    ["c_nonce", "Valeur aléatoire à usage unique, à recopier dans le claim nonce du proof JWT."],
+    ["Cache-Control: no-store", "Obligatoire : la réponse ne doit pas être mise en cache, sinon le nonce ne serait plus unique."]],
   "Demande d'enrôlement": [
     ["Cookie: SESSION", "Prouve que l'utilisateur est déjà connecté. L'application sait ainsi à quel compte rattacher le wallet."],
     ["QR code", "Contient la Credential Offer de l'étape suivante, que le wallet va lire."]],
@@ -213,6 +220,7 @@ const FIELDS = {
     ["/.well-known/openid-credential-issuer", "Adresse standard des metadata, construite à partir de credential_issuer."],
     ["credential_issuer", "Doit être identique à celui de l'offre, sinon le wallet refuse."],
     ["credential_endpoint", "URL où le wallet demandera l'attestation."],
+    ["nonce_endpoint", "Optionnel. S'il est présent, le wallet doit obtenir un c_nonce et le signer dans sa preuve."],
     ["credential_configurations_supported", "Catalogue des attestations émises, indexé par identifiant (ici compte_wallet)."],
     ["format", "Format de l'attestation : dc+sd-jwt pour SD-JWT VC, mso_mdoc pour mdoc."],
     ["vct", "Type de l'attestation (Verifiable Credential Type). Le verifier l'utilisera pour la demander."],
@@ -235,6 +243,7 @@ const FIELDS = {
     ["jwk", "Clé publique du wallet. C'est elle qui sera inscrite dans l'attestation."],
     ["aud", "Destinataire de la preuve : l'émetteur. Empêche de la réutiliser chez un autre émetteur."],
     ["iat", "Date de création, en secondes depuis 1970. L'émetteur refuse une preuve trop ancienne."],
+    ["nonce", "Présent seulement si l'émetteur a un nonce endpoint (optionnel) : le c_nonce reçu, qui rend la preuve non rejouable."],
     ["signature", "Faite avec la clé privée correspondant à jwk : elle prouve que le wallet possède cette clé."]],
   "Émission de l'attestation de compte": [
     ["Authorization: Bearer", "L'access token obtenu au token endpoint."],
@@ -262,7 +271,7 @@ const FIELDS = {
     ["redirect_uri", "Page où le navigateur continue, avec la session ouverte."]]
 };
 
-function buildSteps() {
+function buildSteps(nonce) {
   const S = [];
   S.push({ phase: "Enrôlement", from: "U", to: "CI", req: "« Associer mon wallet »", res: "page avec QR code", title: "Demande d'enrôlement",
     desc: "L'utilisateur est déjà connecté à l'application (session ouverte, compte connu). Il demande à associer son wallet pour pouvoir, plus tard, se connecter avec lui.",
@@ -289,13 +298,13 @@ Content-Type: text/html
 }` });
   S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata émetteur", res: "200 metadata", title: "Metadata de l'émetteur",
     desc: "Le wallet découvre le credential endpoint et le type d'attestation proposé. authorization_servers est absent : l'application est son propre Authorization Server.",
-    notes: ["Obligatoires : credential_issuer, credential_endpoint, credential_configurations_supported.", "L'attestation est liée à une clé du wallet (cnf). C'est indispensable : sans cela, une copie de l'attestation suffirait à se connecter."],
+    notes: ["Obligatoires : credential_issuer, credential_endpoint, credential_configurations_supported.", nonce ? "nonce_endpoint (optionnel) est présent : le wallet devra signer un c_nonce dans sa preuve." : "nonce_endpoint (optionnel) est absent : la preuve ne portera pas de nonce.", "L'attestation est liée à une clé du wallet (cnf). C'est indispensable : sans cela, une copie de l'attestation suffirait à se connecter."],
     reqCode: `GET /.well-known/openid-credential-issuer HTTP/1.1
 Host: app.example.fr`,
     resCode: `HTTP/1.1 200 OK
 {
   "credential_issuer": "${ISS}",
-  "credential_endpoint": "${ISS}/credential",
+  "credential_endpoint": "${ISS}/credential",${nonce ? `\n  "nonce_endpoint": "${ISS}/nonce",` : ""}
   "credential_configurations_supported": {
     "${CFG}": {
       "format": "dc+sd-jwt",
@@ -332,9 +341,19 @@ grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code
   "token_type": "Bearer",
   "expires_in": 300
 }` });
+  if (nonce) S.push({ phase: "Preuve de possession", optional: true, from: "W", to: "CI", req: "POST /nonce (optionnel)", res: "200 c_nonce", title: "Nonce endpoint",
+    desc: "Optionnel. Comme l'émetteur publie un nonce_endpoint, le wallet doit lui demander un c_nonce frais avant de signer sa preuve.",
+    notes: ["Appel sans authentification, sans corps.", "Le c_nonce est à usage unique : l'émetteur refusera une preuve qui réutilise un ancien nonce.", "Si l'émetteur ne publie pas de nonce_endpoint, cette étape disparaît (décocher l'option en haut)."],
+    reqCode: `POST /nonce HTTP/1.1
+Host: app.example.fr`,
+    resCode: `HTTP/1.1 200 OK
+Cache-Control: no-store
+{
+  "c_nonce": "wKI4LT17ac15ES9bw8ac4"
+}` });
   S.push({ phase: "Preuve de possession", self: "W", req: "Signe le proof JWT", title: "Construction du proof JWT",
     desc: "Le wallet crée une paire de clés dédiée à ce compte et signe la preuve. La clé publique sera inscrite dans l'attestation.",
-    notes: ["Sans nonce endpoint, le claim nonce est absent : seul iat limite le rejeu.", "iss est omis (accès anonyme pré-autorisé)."],
+    notes: [nonce ? "nonce = le c_nonce reçu : prouve que la preuve vient d'être signée et empêche son rejeu." : "Sans nonce endpoint, le claim nonce est absent : seul iat limite le rejeu.", "iss est omis (accès anonyme pré-autorisé)."],
     reqCode: `// header
 {
   "typ": "openid4vci-proof+jwt",
@@ -344,7 +363,7 @@ grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code
 // payload
 {
   "aud": "${ISS}",
-  "iat": 1762783200
+  "iat": 1762783200${nonce ? `,\n  "nonce": "wKI4LT17ac15ES9bw8ac4"` : ""}
 }` });
   S.push({ phase: "Émission", from: "W", to: "CI", req: "POST /credential", res: "200 credential", title: "Émission de l'attestation de compte",
     desc: "L'application vérifie le jeton et la preuve, puis émet une attestation contenant l'identifiant du compte, liée à la clé du wallet. Le wallet la stocke.",
@@ -411,7 +430,7 @@ vp_token={"compte":["eyJhbGciOiJFUzI1NiIs...~eyJ0eXAiOiJrYitqd3Qi..."]}
 }
 
 /* ---------- état ---------- */
-let grant = "pre", deferred = false, steps = [], cur = 0, playing = false, timer = null, anim = 0;
+let nonceOn = true, grant = "pre", deferred = false, steps = [], cur = 0, playing = false, timer = null, anim = 0;
 const svg = document.getElementById("svg"), detail = document.getElementById("detail"), progress = document.getElementById("progress");
 const NS = "http://www.w3.org/2000/svg";
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -521,7 +540,7 @@ function renderDetail() {
     : `<span class="chip" style="color:${color(s.from)}">${ACTORS[s.from].name}</span> → <span class="chip" style="color:${color(s.to)}">${ACTORS[s.to].name}</span>`;
   detail.innerHTML = `
     <div class="eyebrow"><span>${s.phase}</span><span>Étape ${cur + 1} / ${steps.length}</span></div>
-    <h2>${s.title}</h2>
+    <h2>${s.title}${s.optional ? ' <span class="opt">Optionnel</span>' : ""}</h2>
     <div class="route">${route}</div>
     <p>${s.desc}</p>
     ${s.notes?.length ? `<ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
@@ -556,7 +575,7 @@ function go(i) {
 }
 
 function rebuild() {
-  stop(); steps = buildSteps(); drawSvg(); go(0);
+  stop(); steps = buildSteps(nonceOn); drawSvg(); go(0);
 }
 function tick() {
   if (cur >= steps.length - 1) { stop(); return; }
@@ -574,6 +593,7 @@ function stop() {
 document.getElementById("play").onclick = () => playing ? stop() : start();
 document.getElementById("next").onclick = () => { stop(); go(cur + 1); };
 document.getElementById("prev").onclick = () => { stop(); go(cur - 1); };
+document.getElementById("nonce").onchange = e => { nonceOn = e.target.checked; rebuild(); };
 document.getElementById("reset").onclick = () => { stop(); go(0); start(); };
 document.addEventListener("keydown", e => {
   if (e.target.closest("input, button")) { if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; }
