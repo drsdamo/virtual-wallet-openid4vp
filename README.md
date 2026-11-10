@@ -196,3 +196,7 @@ révocation) jusqu'à un certificat de `wallet.verifier-trust-anchors`, ou conti
 2. Credentials de test (SD-JWT VC, mdoc) émis au démarrage, clé wallet ✅
 3. Flux de présentation : résolution, sélection DCQL, KB-JWT / DeviceResponse, `direct_post(.jwt)`, UI minimale ✅
 4. Outils de test : journal des échanges, injection d'erreurs, trust store ✅ — essai contre le verifier de référence EUDI à faire
+
+## Documentation
+
+- [`docs/openid4vci-animation.html`](docs/openid4vci-animation.html) : animation de l'enrôlement d'un wallet par OpenID4VCI (grant pré-autorisé, endpoints obligatoires) : l'application émet une attestation de compte, réutilisée ensuite pour se connecter par OpenID4VP. À ouvrir dans un navigateur ; le wallet ne gère pas l'émission.
