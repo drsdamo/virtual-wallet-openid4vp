@@ -1,0 +1,15 @@
+meta {
+  name: Journal d'une émission
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/offers/{{offerId}}/exchanges
+  body: none
+  auth: none
+}
+
+docs {
+  Échanges HTTP avec l'émetteur pour l'offre courante (`/api/offers/exchanges` : les 500 derniers, toutes offres).
+}

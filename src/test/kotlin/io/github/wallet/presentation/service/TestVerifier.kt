@@ -40,7 +40,7 @@ class TestVerifier(private val keys: WalletKeyMaterial) {
 
     suspend fun verifyMdoc(request: ResolvedRequestObject, presentation: String) {
         val response = DeviceResponse.fromDataItem(Cbor.decode(Base64.getUrlDecoder().decode(presentation)))
-        response.verify(PresentationBuilder(keys).sessionTranscript(request))
+        response.verify(PresentationBuilder().sessionTranscript(request))
         check(response.documents.isNotEmpty())
     }
 }

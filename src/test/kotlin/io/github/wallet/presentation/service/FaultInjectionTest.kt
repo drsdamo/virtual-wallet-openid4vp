@@ -36,7 +36,7 @@ class FaultInjectionTest {
 
     private val keys by lazy { WalletKeyMaterialLoader().loadOrCreate(dir) }
     private val credentials by lazy { TestCredentialIssuer(keys).issueFor(TestPersona().identity()) }
-    private val builder by lazy { PresentationBuilder(keys) }
+    private val builder by lazy { PresentationBuilder() }
     private val verifier by lazy { TestVerifier(keys) }
 
     private val request: ResolvedRequestObject by lazy {

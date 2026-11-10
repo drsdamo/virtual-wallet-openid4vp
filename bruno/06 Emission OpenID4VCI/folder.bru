@@ -1,0 +1,16 @@
+meta {
+  name: 06 Émission OpenID4VCI
+  seq: 6
+}
+
+docs {
+  Réception d'une attestation par OpenID4VCI (grant pré-autorisé), le wallet jouant le porteur.
+
+  1. Copier l'offre de l'émetteur (`openid-credential-offer://…`, contenu du QR code, ou JSON) dans la variable
+     d'environnement `credentialOffer`, et le code reçu par un autre canal dans `txCode` si l'offre en exige un.
+  2. *Lire une offre* : le wallet lit l'offre et les metadata (émetteur, serveur d'autorisation) et la met en attente.
+  3. *Accepter* : token, nonce, proof JWT, credential. Le credential reçu rejoint ceux de l'identité choisie et
+     se présente ensuite en OpenID4VP (dossier 03).
+
+  Un `pre-authorized_code` ne sert qu'une fois : il faut une nouvelle offre de l'émetteur pour chaque essai.
+}

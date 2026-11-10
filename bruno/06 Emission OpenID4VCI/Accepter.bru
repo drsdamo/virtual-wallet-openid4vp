@@ -1,0 +1,38 @@
+meta {
+  name: Accepter
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/offers/{{offerId}}/accept
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "txCode": "{{txCode}}",
+    "identityId": null,
+    "faults": []
+  }
+}
+
+tests {
+  test("attestation reçue", () => {
+    expect(res.status, res.body.error).to.equal(200);
+    expect(res.body.credentials).to.have.length.above(0);
+  });
+}
+
+docs {
+  Corps : `txCode` (si l'offre en exige un), `identityId` (sinon la première identité), `faults`.
+
+  Réponse :
+  - `success`, `credentials[]` (`id`, `type`, `warnings` : signature non vérifiée, `cnf` différent du proof…)
+  - `warnings` : anomalies du flux (configuration ignorée, notification en échec…)
+  - en échec, **502** avec `error`, `step`, `status` et `oauthError` (`invalid_grant`, `invalid_proof`…)
+  - `exchanges` : tous les appels à l'émetteur
+
+  **400** si le `tx_code` manque ou si l'identité est inconnue : l'offre reste alors en attente.
+}

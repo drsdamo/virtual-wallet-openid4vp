@@ -30,7 +30,7 @@ class CredentialsController {
     @GetMapping("/credentials")
     List<CredentialViewDTO> credentials() {
         List<CredentialViewDTO> credentials = store.all().stream()
-                .map(c -> new CredentialViewDTO(c.getId(), c.getFormat(), c.getType(), c.getClaims()))
+                .map(c -> new CredentialViewDTO(c.getId(), c.getFormat(), c.getType(), c.getIssuer(), c.getClaims()))
                 .toList();
         log.debug("Listing {} credentials", credentials.size());
         return credentials;

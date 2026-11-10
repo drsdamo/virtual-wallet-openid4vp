@@ -1,0 +1,17 @@
+meta {
+  name: Lister les défauts
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/offers/faults
+  body: none
+  auth: none
+}
+
+tests {
+  test("défauts", () => {
+    expect(res.body.map(f => f.name)).to.include("PROOF_WRONG_AUDIENCE");
+  });
+}

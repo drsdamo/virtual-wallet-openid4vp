@@ -75,7 +75,7 @@ class PresentationServiceTest {
             respond("{}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
         }
         val client = OpenId4VpWalletClient(WalletConfigFactory().create(false), engine)
-        val service = PresentationService(client, store, keys)
+        val service = PresentationService(client, store)
 
         val pending = assertIs<PendingPresentation.Valid>(service.resolve(requestUri(), "trace-1"))
         assertEquals(clientId, pending.verifier.clientId)
@@ -102,7 +102,7 @@ class PresentationServiceTest {
         // mdoc : la DeviceResponse se vérifie sur le SessionTranscript OpenID4VP, avec seulement les éléments demandés
         val encoded = vpToken.getValue("mdl").jsonArray.single().jsonPrimitive.content
         val response = DeviceResponse.fromDataItem(Cbor.decode(Base64.getUrlDecoder().decode(encoded)))
-        response.verify(PresentationBuilder(keys).sessionTranscript(pending.request))
+        response.verify(PresentationBuilder().sessionTranscript(pending.request))
         val doc = response.documents.single()
         assertEquals(TestCredentialIssuer.MDL_DOCTYPE, doc.docType)
         assertEquals(setOf("given_name", "age_over_18"), doc.issuerNamespaces.data.getValue(TestCredentialIssuer.MDL_NAMESPACE).keys)

@@ -1,0 +1,41 @@
+meta {
+  name: Lire une offre
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/offers
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "offer": "{{credentialOffer}}"
+  }
+}
+
+script:post-response {
+  bru.setVar("offerId", res.body.id);
+}
+
+tests {
+  test("offre lue et metadata récupérées", () => {
+    expect(res.status).to.equal(200);
+    expect(res.body.valid, res.body.error).to.equal(true);
+  });
+}
+
+docs {
+  Corps : `offer` = `openid-credential-offer://?credential_offer=…` (par valeur), `…?credential_offer_uri=…`
+  (par référence, téléchargée par le wallet) ou le JSON de l'offre.
+
+  Réponse :
+  - `id` → variable `offerId`
+  - `valid` ; sinon `error` et `step` (`OFFER`, `ISSUER_METADATA`, `AUTHORIZATION_SERVER_METADATA`)
+  - `credentialIssuer`, `issuerName`, `credentials[]` (configuration, format, `vct`/`doctype`, `supported`)
+  - `txCode` : exigé si présent (`length`, `inputMode`, `description`)
+  - `tokenEndpoint`, `nonceEndpoint`, `credentialEndpoint`, `dpopSigningAlgs` (DPoP non géré)
+  - `exchanges` : appels HTTP déjà faits (offre par référence, metadata)
+}

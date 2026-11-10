@@ -1,0 +1,32 @@
+meta {
+  name: Accepter avec un mauvais nonce
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/offers/{{offerId}}/accept
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "txCode": "{{txCode}}",
+    "faults": ["PROOF_WRONG_NONCE"]
+  }
+}
+
+tests {
+  test("l'émetteur refuse le proof", () => {
+    expect(res.status).to.equal(502);
+    expect(res.body.step).to.equal("CREDENTIAL");
+  });
+}
+
+docs {
+  Le proof JWT porte un `nonce` altéré : un émetteur correct répond `invalid_nonce` (ou `invalid_proof`).
+  Le wallet ne refait pas l'essai avec un nouveau nonce quand le défaut est volontaire.
+
+  Lire une nouvelle offre avant : le `pre-authorized_code` de la précédente est consommé.
+}

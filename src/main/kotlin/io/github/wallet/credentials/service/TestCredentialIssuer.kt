@@ -133,7 +133,7 @@ class TestCredentialIssuer(private val keys: WalletKeyMaterial) {
         }
         val serialized = with(NimbusSdJwtOps) { issued.serialize() }
         val claims = with(NimbusSdJwtOps) { issued.recreateClaimsAndDisclosuresPerClaim().first }
-        return SdJwtVcCredential("${subject.id}:pid-sd-jwt", PID_VCT, issued, serialized, claims.toPlainMap())
+        return SdJwtVcCredential("${subject.id}:pid-sd-jwt", PID_VCT, issued, serialized, claims.toPlainMap(), ISSUER_URL, keys.devicePrivateKey)
     }
 
     /** Les noms pointés deviennent des objets imbriqués, chaque niveau étant divulgable séparément. */
@@ -232,7 +232,7 @@ class TestCredentialIssuer(private val keys: WalletKeyMaterial) {
         val claims = ns.data.mapValues { (_, items) ->
             items.mapValues { (_, item) -> Cbor.toDiagnostics(item.dataElementValue) }
         }
-        return MdocCredential(id, docType, issuerAuth, ns, claims)
+        return MdocCredential(id, docType, issuerAuth, ns, claims, ISSUER_URL, keys.devicePrivateKey)
     }
 
 
