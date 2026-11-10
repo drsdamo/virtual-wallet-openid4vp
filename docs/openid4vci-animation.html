@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Enrôlement wallet OpenID4VCI</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout : diagramme de séquence animé à gauche, panneau de détail HTTP à droite (empilés sur mobile) */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --fg: #17202c; --muted: #5a6677; --line: #b7c0cd; --band: #e3ebf7;
+  --accent: #1d56cf; --code-bg: #f4f6fa; --code-key: #1d56cf; --code-str: #0e6f5c;
+  --c-U: #4a5568; --c-W: #0b7a84; --c-AS: #6a43bd; --c-CI: #b05a0c;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e131a; --surface: #161d27; --fg: #e3e8ef; --muted: #96a2b3; --line: #3b4656; --band: #1d2a3d;
+  --accent: #7ba3ff; --code-bg: #10161e; --code-key: #8fb1ff; --code-str: #5fd0b4;
+  --c-U: #aab5c5; --c-W: #43c4cc; --c-AS: #ab90f2; --c-CI: #f0a457; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e131a; --surface: #161d27; --fg: #e3e8ef; --muted: #96a2b3; --line: #3b4656; --band: #1d2a3d;
+  --accent: #7ba3ff; --code-bg: #10161e; --code-key: #8fb1ff; --code-str: #5fd0b4;
+  --c-U: #aab5c5; --c-W: #43c4cc; --c-AS: #ab90f2; --c-CI: #f0a457; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+header h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(26px, 4vw, 36px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 14px var(--f-body); padding: 7px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; cursor: pointer; }
+.ctrl { display: inline-flex; gap: 6px; margin-left: auto; }
+.ctrl button { font: 600 14px var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.ctrl button.play { background: var(--fg); color: var(--surface); border-color: var(--fg); min-width: 92px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.progress { display: flex; gap: 3px; }
+.progress button { flex: 1; height: 8px; border: 0; padding: 0; border-radius: 2px; background: var(--line); cursor: pointer; opacity: .55; }
+.progress button.done { opacity: .9; }
+.progress button.cur { opacity: 1; outline: 2px solid var(--fg); outline-offset: 1px; }
+.main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .ctrl { margin-left: 0; } }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 600px; height: auto; }
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); min-width: 0; }
+.eyebrow { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.detail h2 { font-family: var(--f-display); font-weight: 700; font-size: 24px; margin: 0; text-wrap: balance; }
+.detail p { margin: 0; max-width: 65ch; }
+.detail ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.route { font: 600 13px var(--f-mono); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.chip { padding: 2px 8px; border-radius: 999px; border: 1.5px solid currentColor; }
+.code h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 12.5px/1.55 var(--f-mono); overflow-x: auto; white-space: pre; font-variant-ligatures: none; }
+.code .k { color: var(--code-key); } .code .s { color: var(--code-str); } .code .h { font-weight: 600; }
+/* SVG */
+svg text { font-family: var(--f-mono); font-size: 12px; fill: var(--fg); }
+svg .actor text { font-family: var(--f-display); font-weight: 700; font-size: 13.5px; }
+svg .lbl { paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+svg .row { cursor: pointer; transition: opacity .3s; }
+svg .row.future { opacity: .2; }
+svg .row.past { opacity: .7; }
+svg .row .hit { fill: transparent; }
+svg .row.cur .hit { fill: var(--band); }
+svg .row:hover .hit { fill: var(--band); }
+svg .row.cur .res { animation: show .35s ease-out .75s both; }
+svg .row.cur .sbox { animation: pulse 1.4s ease-in-out infinite; }
+svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; letter-spacing: .08em; fill: var(--muted); }
+@keyframes show { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 50% { stroke-width: 3; } }
+@media (prefers-reduced-motion: reduce) { svg .row.cur .res, svg .row.cur .sbox { animation: none; } }
+.legend { color: var(--muted); font-size: 13px; }
+.fields h3, .gloss h2 { margin: 0 0 6px; }
+.fields h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.fields dl { margin: 0; display: grid; gap: 0; border-top: 1px solid var(--line); }
+.fields dl > div { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 4px 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.fields dt { font: 600 12.5px var(--f-mono); color: var(--code-key); overflow-wrap: anywhere; }
+.fields dd { margin: 0; font-size: 14px; }
+@media (max-width: 520px) { .fields dl > div { grid-template-columns: minmax(0, 1fr); } }
+.gloss { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; scroll-margin-top: 12px; }
+.gloss h2 { font-family: var(--f-display); font-size: 24px; }
+.gloss dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px 28px; }
+.gloss dt { font-weight: 600; }
+.gloss dd { margin: 2px 0 0; color: var(--muted); }
+a { color: var(--accent); }
+.opt { font: 600 11px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border: 1.5px dashed var(--muted); border-radius: 999px; padding: 2px 8px; vertical-align: middle; }
+.fields dt a { color: var(--code-key); }
+.refs h3 { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.refs ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Enrôlement wallet OpenID4VCI</h1>
+    <p>Un utilisateur déjà connecté à l'application y enrôle son wallet : l'application lui émet, par OpenID4VCI (grant pré-autorisé, endpoints obligatoires, plus le nonce endpoint optionnel), une attestation contenant un identifiant de compte. Cette attestation servira ensuite à se connecter par OpenID4VP. <a href="#glossaire">Voir le glossaire</a>.</p>
+  </header>
+
+  <div class="bar">
+    <label class="chk"><input type="checkbox" id="nonce" checked> Nonce endpoint (optionnel)</label>
+    <div class="ctrl">
+      <button id="prev" aria-label="Étape précédente">◀</button>
+      <button id="play" class="play">▶ Lecture</button>
+      <button id="next" aria-label="Étape suivante">▶</button>
+      <button id="reset">Rejouer</button>
+    </div>
+  </div>
+  <div class="progress" id="progress"></div>
+
+  <div class="main">
+    <div class="diagram"><svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagramme de séquence OpenID4VCI"></svg></div>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+  </div>
+  <p class="legend">Flèche pleine : requête. Flèche pointillée : réponse. Cliquer une ligne du diagramme ou la barre de progression pour y aller. Clavier : ← →, espace.</p>
+  <section class="gloss" id="glossaire">
+    <h2>Glossaire</h2>
+    <dl>
+      <div><dt>OpenID4VCI</dt><dd>OpenID for Verifiable Credential Issuance. Protocole, bâti sur OAuth 2.0, par lequel un émetteur dépose une attestation dans un wallet. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>OpenID4VP</dt><dd>OpenID for Verifiable Presentations. Protocole par lequel un wallet présente une attestation à un verifier. <a href="https://openid.net/specs/openid-4-verifiable-presentations-1_0.html" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Wallet</dt><dd>Application de l'utilisateur qui stocke ses attestations et les clés qui y sont liées.</dd></div>
+      <div><dt>Émetteur (Credential Issuer)</dt><dd>Celui qui signe et délivre l'attestation. Ici, l'application.</dd></div>
+      <div><dt>Authorization Server (AS)</dt><dd>Serveur OAuth qui délivre l'access token. Peut être l'émetteur lui-même.</dd></div>
+      <div><dt>Verifier</dt><dd>Celui qui demande et vérifie une présentation. Ici, l'application au moment de la connexion.</dd></div>
+      <div><dt>Attestation (Verifiable Credential)</dt><dd>Ensemble d'informations (claims) signé par un émetteur, vérifiable par n'importe qui avec sa clé publique.</dd></div>
+      <div><dt>Claim</dt><dd>Une information portée par l'attestation, par exemple account_id.</dd></div>
+      <div><dt>SD-JWT VC</dt><dd>Format d'attestation basé sur JWT où chaque claim peut être divulgué ou non (Selective Disclosure). <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Disclosure</dt><dd>Morceau d'un SD-JWT, après un ~, qui révèle un claim. Le wallet n'envoie que celles qu'il veut montrer. <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-disclosure-jwt/" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>mdoc</dt><dd>Autre format d'attestation (ISO 18013-5, permis mobile), encodé en CBOR.</dd></div>
+      <div><dt>Credential Offer</dt><dd>Message de l'émetteur au wallet qui annonce une attestation disponible et comment l'obtenir. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-offer" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Credential configuration</dt><dd>Une entrée du catalogue de l'émetteur : format, type et règles d'une attestation.</dd></div>
+      <div><dt>vct</dt><dd>Verifiable Credential Type : identifiant du type d'une attestation SD-JWT VC.</dd></div>
+      <div><dt>Grant</dt><dd>Terme OAuth : la façon d'obtenir un access token (code d'autorisation, pré-autorisé…). <a href="https://www.rfc-editor.org/rfc/rfc6749#section-1.3" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Pre-authorized code</dt><dd>Code fourni dans l'offre quand l'utilisateur est déjà authentifié. Échangé directement contre un access token. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#pre-authz-code-flow" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>tx_code</dt><dd>Code de transaction optionnel envoyé par un autre canal (SMS…). Protège le pre-authorized code s'il est intercepté. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#credential-offer-parameters" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Access token</dt><dd>Jeton temporaire qui autorise le wallet à appeler le credential endpoint. <a href="https://www.rfc-editor.org/rfc/rfc6749#section-1.4" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Endpoint</dt><dd>URL d'un serveur qui reçoit un type de requête précis (token, credential…).</dd></div>
+      <div><dt>Metadata / .well-known</dt><dd>Document JSON publié à une adresse standard, qui décrit les endpoints et capacités d'un serveur. <a href="https://www.rfc-editor.org/rfc/rfc8615" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>JWT</dt><dd>JSON Web Token : header, payload et signature encodés en base64url, séparés par des points. <a href="https://www.rfc-editor.org/rfc/rfc7519" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>JWK</dt><dd>JSON Web Key : une clé cryptographique écrite en JSON. <a href="https://www.rfc-editor.org/rfc/rfc7517" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>ES256</dt><dd>Signature ECDSA sur la courbe P-256 avec SHA-256. <a href="https://www.rfc-editor.org/rfc/rfc7518#section-3.4" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Proof JWT (preuve de possession)</dt><dd>JWT signé par le wallet qui prouve qu'il détient la clé privée à lier à l'attestation. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#jwt-proof-type" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Holder binding / cnf</dt><dd>Lien entre l'attestation et une clé du wallet, inscrit dans le claim cnf. Une copie de l'attestation est inutile sans la clé. <a href="https://www.rfc-editor.org/rfc/rfc7800" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>Nonce / c_nonce</dt><dd>Valeur aléatoire à usage unique à signer, pour prouver que la signature est récente et empêcher le rejeu. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#nonce-endpoint" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>KB-JWT</dt><dd>Key Binding JWT : ajouté à la fin d'un SD-JWT présenté, signé par la clé cnf avec le nonce du verifier. <a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-disclosure-jwt/" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>DCQL</dt><dd>Digital Credentials Query Language : format JSON de la requête OpenID4VP qui décrit les attestations voulues. <a href="https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#dcql_query" target="_blank" rel="noopener">Référence</a></dd></div>
+      <div><dt>PKCE, PAR, DPoP</dt><dd>Protections OAuth optionnelles ici, absentes de ce flux minimal : lien code/wallet, requête poussée côté serveur, jeton lié à une clé. <a href="https://www.rfc-editor.org/rfc/rfc7636" target="_blank" rel="noopener">RFC 7636</a> <a href="https://www.rfc-editor.org/rfc/rfc9126" target="_blank" rel="noopener">RFC 9126</a> <a href="https://www.rfc-editor.org/rfc/rfc9449" target="_blank" rel="noopener">RFC 9449</a></dd></div>
+    </dl>
+  </section>
+
+</div>
+
+<script>
+const ACTORS = { U: { x: 100, name: "Utilisateur" }, W: { x: 320, name: "Wallet" }, CI: { x: 540, name: "Application (émetteur)" } };
+const PHASE_COLOR = { "Enrôlement": "--c-U", "Découverte": "--c-U", "Autorisation": "--c-AS", "Preuve de possession": "--c-W", "Émission": "--c-CI", "Plus tard : connexion (OpenID4VP)": "--line" };
+const ISS = "https://app.example.fr";
+const AS_URL = "https://auth.example.eu";
+const CFG = "compte_wallet";
+
+const VCI = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#";
+const VP = "https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#";
+const RFC = n => `https://www.rfc-editor.org/rfc/rfc${n}`;
+const REFS = {
+  "Demande d'enrôlement": [["OpenID4VCI · Pre-Authorized Code Flow", VCI + "pre-authz-code-flow"], ["OpenID4VCI · Sécurité du Pre-Authorized Code Flow", VCI + "security-considerations-pre-authz-code"]],
+  "Credential Offer": [["OpenID4VCI · Credential Offer", VCI + "credential-offer"], ["OpenID4VCI · Credential Offer Parameters", VCI + "credential-offer-parameters"], ["OpenID4VCI · Sécurité de la Credential Offer", VCI + "credential-offer-security"]],
+  "Metadata de l'émetteur": [["OpenID4VCI · Credential Issuer Metadata Retrieval", VCI + "credential-issuer-wellknown"], ["OpenID4VCI · Credential Issuer Metadata Parameters", VCI + "credential-issuer-parameters"], ["OpenID4VCI · Profil IETF SD-JWT VC (metadata)", VCI + "server-metadata-sd-jwt-vc"]],
+  "Metadata OAuth de l'application": [["OpenID4VCI · OAuth 2.0 Authorization Server Metadata", VCI + "as-metadata"], ["RFC 8414 · OAuth 2.0 Authorization Server Metadata", RFC(8414) + "#section-3"]],
+  "Requête token": [["OpenID4VCI · Token Request", VCI + "token-request"], ["OpenID4VCI · Successful Token Response", VCI + "token-response"], ["RFC 6750 · Bearer Token", RFC(6750)]],
+  "Nonce endpoint": [["OpenID4VCI · Nonce Endpoint", VCI + "nonce-endpoint"], ["OpenID4VCI · Nonce Request", VCI + "nonce-request"], ["OpenID4VCI · Nonce Response", VCI + "nonce-response"]],
+  "Construction du proof JWT": [["OpenID4VCI · Proof type jwt", VCI + "jwt-proof-type"], ["OpenID4VCI · Verifying Proof", VCI + "verifying-key-proof"], ["OpenID4VCI · Proof replay", VCI + "key-proof-replay"], ["OpenID4VCI · Nonce Endpoint (optionnel)", VCI + "nonce-endpoint"]],
+  "Émission de l'attestation de compte": [["OpenID4VCI · Credential Request", VCI + "credential-request"], ["OpenID4VCI · Credential Response", VCI + "credential-response"], ["OpenID4VCI · Liaison de l'attestation au détenteur", VCI + "credential-binding"], ["RFC 7800 · Claim cnf", RFC(7800) + "#section-3"]],
+  "Demande de présentation": [["OpenID4VP · Authorization Request", VP + "vp_token_request"], ["OpenID4VP · Client Identifier Prefixes", VP + "client_identifier_prefixes"], ["OpenID4VP · DCQL", VP + "dcql_query"], ["OpenID4VP · Preventing Replay", VP + "preventing-replay"]],
+  "Présentation et identification": [["OpenID4VP · Response Parameters", VP + "response-parameters"], ["OpenID4VP · Response Mode direct_post", VP + "response_mode_post"], ["OpenID4VP · Authentification par attestation", VP + "end-user-authentication-using-credentials"]]
+};
+const FIELD_REF = {
+  "credential_offer": VCI + "credential-offer-parameters", "credential_configuration_ids": VCI + "credential-offer-parameters",
+  "grants": VCI + "credential-offer-parameters", "urn:…:pre-authorized_code": VCI + "credential-offer-parameters",
+  "Credential Offer|pre-authorized_code": VCI + "credential-offer-parameters", "Requête token|pre-authorized_code": VCI + "token-request",
+  "Credential Offer|credential_issuer": VCI + "credential-issuer-identifier", "Metadata de l'émetteur|credential_issuer": VCI + "credential-issuer-parameters",
+  "/.well-known/openid-credential-issuer": VCI + "credential-issuer-wellknown",
+  "credential_endpoint": VCI + "credential-issuer-parameters", "credential_configurations_supported": VCI + "credential-issuer-parameters",
+  "format": VCI + "credential-issuer-parameters", "cryptographic_binding_methods_supported": VCI + "credential-issuer-parameters",
+  "proof_types_supported": VCI + "credential-issuer-parameters", "proof_signing_alg_values_supported": VCI + "credential-issuer-parameters",
+  "Metadata de l'émetteur|vct": VCI + "server-metadata-sd-jwt-vc",
+  "/.well-known/oauth-authorization-server": RFC(8414) + "#section-3", "issuer": RFC(8414) + "#section-2", "token_endpoint": RFC(8414) + "#section-2",
+  "grant_type": VCI + "token-request", "access_token": VCI + "token-response", "token_type": VCI + "token-response", "expires_in": VCI + "token-response",
+  "typ": VCI + "jwt-proof-type", "alg": VCI + "jwt-proof-type", "jwk": VCI + "jwt-proof-type", "aud": VCI + "jwt-proof-type",
+  "Construction du proof JWT|iat": VCI + "jwt-proof-type", "Construction du proof JWT|nonce": VCI + "jwt-proof-type", "c_nonce": VCI + "nonce-response", "/nonce": VCI + "nonce-request", "nonce_endpoint": VCI + "credential-issuer-parameters", "signature": VCI + "verifying-key-proof",
+  "Authorization: Bearer": RFC(6750) + "#section-2.1", "credential_configuration_id": VCI + "credential-request", "proofs.jwt": VCI + "credential-request",
+  "credentials[].credential": VCI + "credential-response", "cnf": RFC(7800) + "#section-3",
+  "client_id": VP + "client_identifier_prefixes", "request_uri": RFC(9101) + "#section-5.2", "response_type": VP + "response_type_vp_token",
+  "nonce": VP + "preventing-replay", "dcql_query": VP + "dcql_query", "meta.vct_values": VP + "sd_jwt_vc_meta_parameter",
+  "claims[].path": VP + "claims_query", "vp_token": VP + "response-parameters", "…~eyJ0eXAiOiJrYitqd3Qi…": VP + "preventing-replay"
+};
+
+const FIELDS = {
+  "Nonce endpoint": [
+    ["/nonce", "Endpoint de l'émetteur, annoncé par nonce_endpoint dans les metadata. Requête POST sans paramètre."],
+    ["c_nonce", "Valeur aléatoire à usage unique, à recopier dans le claim nonce du proof JWT."],
+    ["Cache-Control: no-store", "Obligatoire : la réponse ne doit pas être mise en cache, sinon le nonce ne serait plus unique."]],
+  "Demande d'enrôlement": [
+    ["Cookie: SESSION", "Prouve que l'utilisateur est déjà connecté. L'application sait ainsi à quel compte rattacher le wallet."],
+    ["QR code", "Contient la Credential Offer de l'étape suivante, que le wallet va lire."]],
+  "Credential Offer": [
+    ["openid-credential-offer://", "Schéma d'URL qui ouvre le wallet installé sur le téléphone."],
+    ["credential_offer", "L'offre elle-même, en JSON encodé dans l'URL (passage par valeur)."],
+    ["credential_issuer", "URL qui identifie l'émetteur. Le wallet s'en sert pour trouver ses metadata."],
+    ["credential_configuration_ids", "Le ou les types d'attestation proposés. Ce sont des clés du catalogue publié dans les metadata."],
+    ["grants", "Comment le wallet obtiendra son access token."],
+    ["urn:…:pre-authorized_code", "Type de grant : l'utilisateur a déjà été authentifié, aucune connexion supplémentaire."],
+    ["pre-authorized_code", "Code secret à usage unique, échangé contre un access token. Qui le détient peut obtenir l'attestation."]],
+  "Metadata de l'émetteur": [
+    ["/.well-known/openid-credential-issuer", "Adresse standard des metadata, construite à partir de credential_issuer."],
+    ["credential_issuer", "Doit être identique à celui de l'offre, sinon le wallet refuse."],
+    ["credential_endpoint", "URL où le wallet demandera l'attestation."],
+    ["nonce_endpoint", "Optionnel. S'il est présent, le wallet doit obtenir un c_nonce et le signer dans sa preuve."],
+    ["credential_configurations_supported", "Catalogue des attestations émises, indexé par identifiant (ici compte_wallet)."],
+    ["format", "Format de l'attestation : dc+sd-jwt pour SD-JWT VC, mso_mdoc pour mdoc."],
+    ["vct", "Type de l'attestation (Verifiable Credential Type). Le verifier l'utilisera pour la demander."],
+    ["cryptographic_binding_methods_supported", "Comment l'attestation est liée à une clé du wallet. jwk : la clé publique est incluse telle quelle."],
+    ["proof_types_supported", "Formes de preuve de possession acceptées (ici un JWT signé)."],
+    ["proof_signing_alg_values_supported", "Algorithmes de signature acceptés pour la preuve. ES256 = ECDSA sur P-256 avec SHA-256."]],
+  "Metadata OAuth de l'application": [
+    ["/.well-known/oauth-authorization-server", "Adresse standard des metadata OAuth (RFC 8414)."],
+    ["issuer", "Identifiant de l'Authorization Server, ici l'application elle-même."],
+    ["token_endpoint", "URL où échanger le pre-authorized_code contre un access token."]],
+  "Requête token": [
+    ["grant_type", "Type d'échange demandé : le grant pré-autorisé défini par OpenID4VCI."],
+    ["pre-authorized_code", "Le code reçu dans l'offre. L'application l'invalide dès qu'il est utilisé."],
+    ["access_token", "Jeton à envoyer au credential endpoint dans le header Authorization."],
+    ["token_type", "Bearer : quiconque possède le jeton peut l'utiliser, d'où sa durée de vie courte."],
+    ["expires_in", "Durée de validité du jeton, en secondes."]],
+  "Construction du proof JWT": [
+    ["typ", "Type du JWT. openid4vci-proof+jwt empêche qu'un autre JWT soit accepté comme preuve."],
+    ["alg", "Algorithme de signature utilisé."],
+    ["jwk", "Clé publique du wallet. C'est elle qui sera inscrite dans l'attestation."],
+    ["aud", "Destinataire de la preuve : l'émetteur. Empêche de la réutiliser chez un autre émetteur."],
+    ["iat", "Date de création, en secondes depuis 1970. L'émetteur refuse une preuve trop ancienne."],
+    ["nonce", "Présent seulement si l'émetteur a un nonce endpoint (optionnel) : le c_nonce reçu, qui rend la preuve non rejouable."],
+    ["signature", "Faite avec la clé privée correspondant à jwk : elle prouve que le wallet possède cette clé."]],
+  "Émission de l'attestation de compte": [
+    ["Authorization: Bearer", "L'access token obtenu au token endpoint."],
+    ["credential_configuration_id", "L'attestation demandée, prise dans le catalogue des metadata."],
+    ["proofs.jwt", "Liste de proof JWT, une par clé à lier (une seule ici)."],
+    ["credentials[].credential", "L'attestation SD-JWT : un JWT signé, suivi de disclosures séparées par ~."],
+    ["iss", "L'émetteur qui a signé l'attestation."],
+    ["vct", "Le type d'attestation, repris des metadata."],
+    ["account_id", "Claim métier choisi par l'application, non défini par la spec : l'identifiant qui retrouvera le compte."],
+    ["iat", "Date d'émission."],
+    ["cnf", "Confirmation : la clé publique du wallet. Seul le détenteur de la clé privée pourra présenter l'attestation."]],
+  "Demande de présentation": [
+    ["openid4vp://", "Schéma d'URL qui ouvre le wallet pour une présentation."],
+    ["client_id", "Identité du verifier. Le préfixe x509_san_dns: indique qu'elle est prouvée par un certificat."],
+    ["request_uri", "URL où le wallet télécharge la requête complète, signée par le verifier."],
+    ["response_type", "vp_token : le verifier attend une présentation d'attestation."],
+    ["nonce", "Valeur aléatoire que le wallet devra signer. Empêche de rejouer une ancienne présentation."],
+    ["dcql_query", "Requête en DCQL décrivant les attestations voulues."],
+    ["meta.vct_values", "Filtre sur le type d'attestation accepté."],
+    ["claims[].path", "Claims que le wallet doit divulguer (ici account_id)."]],
+  "Présentation et identification": [
+    ["vp_token", "Les présentations, indexées par l'id de la requête DCQL (compte)."],
+    ["…~eyJ0eXAiOiJrYitqd3Qi…", "Le KB-JWT final, signé par la clé cnf. Il contient le nonce et l'aud du verifier."],
+    ["state", "Relie la réponse à la requête initiale."],
+    ["redirect_uri", "Page où le navigateur continue, avec la session ouverte."]]
+};
+
+function buildSteps(nonce) {
+  const S = [];
+  S.push({ phase: "Enrôlement", from: "U", to: "CI", req: "« Associer mon wallet »", res: "page avec QR code", title: "Demande d'enrôlement",
+    desc: "L'utilisateur est déjà connecté à l'application (session ouverte, compte connu). Il demande à associer son wallet pour pouvoir, plus tard, se connecter avec lui.",
+    notes: ["L'application génère un pre-authorized_code à usage unique, court (quelques minutes), lié au compte de la session.", "L'authentification a déjà eu lieu : c'est exactement le cas d'usage du grant pré-autorisé. L'authorization code ferait se reconnecter l'utilisateur pour rien."],
+    reqCode: `POST /compte/wallet/enrolement HTTP/1.1
+Host: app.example.fr
+Cookie: SESSION=7f3a9c...`,
+    resCode: `HTTP/1.1 200 OK
+Content-Type: text/html
+
+<!-- QR code = Credential Offer, valable 5 min -->` });
+  S.push({ phase: "Découverte", from: "CI", to: "W", req: "Credential Offer (QR)", title: "Credential Offer",
+    desc: "L'utilisateur scanne le QR code avec son wallet (ou suit le lien openid-credential-offer:// sur le même appareil). L'offre porte le pre-authorized_code.",
+    notes: ["Sans tx_code (optionnel), quiconque voit le QR code avant l'utilisateur peut récupérer l'attestation à sa place. Pour un moyen de connexion, l'ajouter est à envisager."],
+    reqCode: `openid-credential-offer://?credential_offer=
+{
+  "credential_issuer": "${ISS}",
+  "credential_configuration_ids": ["${CFG}"],
+  "grants": {
+    "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
+      "pre-authorized_code": "oaKazRN8I0IbtZ0C7JuMn5"
+    }
+  }
+}` });
+  S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata émetteur", res: "200 metadata", title: "Metadata de l'émetteur",
+    desc: "Le wallet découvre le credential endpoint et le type d'attestation proposé. authorization_servers est absent : l'application est son propre Authorization Server.",
+    notes: ["Obligatoires : credential_issuer, credential_endpoint, credential_configurations_supported.", nonce ? "nonce_endpoint (optionnel) est présent : le wallet devra signer un c_nonce dans sa preuve." : "nonce_endpoint (optionnel) est absent : la preuve ne portera pas de nonce.", "L'attestation est liée à une clé du wallet (cnf). C'est indispensable : sans cela, une copie de l'attestation suffirait à se connecter."],
+    reqCode: `GET /.well-known/openid-credential-issuer HTTP/1.1
+Host: app.example.fr`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "credential_issuer": "${ISS}",
+  "credential_endpoint": "${ISS}/credential",${nonce ? `\n  "nonce_endpoint": "${ISS}/nonce",` : ""}
+  "credential_configurations_supported": {
+    "${CFG}": {
+      "format": "dc+sd-jwt",
+      "vct": "${ISS}/vct/compte",
+      "cryptographic_binding_methods_supported": ["jwk"],
+      "proof_types_supported": {
+        "jwt": { "proof_signing_alg_values_supported": ["ES256"] }
+      }
+    }
+  }
+}` });
+  S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata OAuth", res: "200 metadata", title: "Metadata OAuth de l'application",
+    desc: "Le wallet récupère le token endpoint, publié par l'application elle-même (RFC 8414).",
+    notes: [],
+    reqCode: `GET /.well-known/oauth-authorization-server HTTP/1.1
+Host: app.example.fr`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "issuer": "${ISS}",
+  "token_endpoint": "${ISS}/token"
+}` });
+  S.push({ phase: "Autorisation", from: "W", to: "CI", req: "POST /token", res: "200 access_token", title: "Requête token",
+    desc: "Le wallet échange le pre-authorized_code contre un access token. L'application invalide le code et rattache le jeton au compte de l'utilisateur.",
+    notes: ["Pas de client_id ni de PKCE dans ce grant."],
+    reqCode: `POST /token HTTP/1.1
+Host: app.example.fr
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code
+&pre-authorized_code=oaKazRN8I0IbtZ0C7JuMn5`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "access_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 300
+}` });
+  if (nonce) S.push({ phase: "Preuve de possession", optional: true, from: "W", to: "CI", req: "POST /nonce (optionnel)", res: "200 c_nonce", title: "Nonce endpoint",
+    desc: "Optionnel. Comme l'émetteur publie un nonce_endpoint, le wallet doit lui demander un c_nonce frais avant de signer sa preuve.",
+    notes: ["Appel sans authentification, sans corps.", "Le c_nonce est à usage unique : l'émetteur refusera une preuve qui réutilise un ancien nonce.", "Si l'émetteur ne publie pas de nonce_endpoint, cette étape disparaît (décocher l'option en haut)."],
+    reqCode: `POST /nonce HTTP/1.1
+Host: app.example.fr`,
+    resCode: `HTTP/1.1 200 OK
+Cache-Control: no-store
+{
+  "c_nonce": "wKI4LT17ac15ES9bw8ac4"
+}` });
+  S.push({ phase: "Preuve de possession", self: "W", req: "Signe le proof JWT", title: "Construction du proof JWT",
+    desc: "Le wallet crée une paire de clés dédiée à ce compte et signe la preuve. La clé publique sera inscrite dans l'attestation.",
+    notes: [nonce ? "nonce = le c_nonce reçu : prouve que la preuve vient d'être signée et empêche son rejeu." : "Sans nonce endpoint, le claim nonce est absent : seul iat limite le rejeu.", "iss est omis (accès anonyme pré-autorisé)."],
+    reqCode: `// header
+{
+  "typ": "openid4vci-proof+jwt",
+  "alg": "ES256",
+  "jwk": { "kty": "EC", "crv": "P-256", "x": "TCAER19Zvu3OHF4j4W4vfSVoHIP1ILilDls7vCeGemc", "y": "ZxjiWWbZMQGHVWKVQ4hbSIirsVfuecCE6t4jT9F2HZQ" }
+}
+// payload
+{
+  "aud": "${ISS}",
+  "iat": 1762783200${nonce ? `,\n  "nonce": "wKI4LT17ac15ES9bw8ac4"` : ""}
+}` });
+  S.push({ phase: "Émission", from: "W", to: "CI", req: "POST /credential", res: "200 credential", title: "Émission de l'attestation de compte",
+    desc: "L'application vérifie le jeton et la preuve, puis émet une attestation contenant l'identifiant du compte, liée à la clé du wallet. Le wallet la stocke.",
+    notes: ["Préférer un identifiant aléatoire dédié au wallet plutôt que l'identifiant interne du compte : révocable et sans fuite d'information.", "L'application garde la correspondance identifiant ↔ compte."],
+    reqCode: `POST /credential HTTP/1.1
+Host: app.example.fr
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
+
+{
+  "credential_configuration_id": "${CFG}",
+  "proofs": {
+    "jwt": ["eyJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCIsImFsZyI6IkVTMjU2In0..."]
+  }
+}`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "credentials": [{
+    "credential": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImRjK3NkLWp3dCJ9...~"
+  }]
+}
+
+// payload du SD-JWT émis
+{
+  "iss": "${ISS}",
+  "vct": "${ISS}/vct/compte",
+  "account_id": "wlt_8Kq2vXr4Tn",
+  "iat": 1762783205,
+  "cnf": { "jwk": { "kty": "EC", "crv": "P-256", "x": "TCAER19Z...", "y": "ZxjiWWbZ..." } }
+}` });
+  S.push({ phase: "Plus tard : connexion (OpenID4VP)", from: "CI", to: "W", req: "Authorization Request", title: "Demande de présentation",
+    desc: "Hors OpenID4VCI. Lors d'une connexion ultérieure, l'application, devenue verifier, demande l'attestation de compte via OpenID4VP.",
+    notes: ["Le nonce de la requête est ici indispensable : c'est lui qui empêche de rejouer une ancienne présentation."],
+    reqCode: `openid4vp://?client_id=x509_san_dns:app.example.fr
+&request_uri=https://app.example.fr/vp/request/9d1c
+
+// requête signée (extrait)
+{
+  "response_type": "vp_token",
+  "nonce": "n-0S6_WzA2Mj",
+  "dcql_query": {
+    "credentials": [{
+      "id": "compte",
+      "format": "dc+sd-jwt",
+      "meta": { "vct_values": ["${ISS}/vct/compte"] },
+      "claims": [{ "path": ["account_id"] }]
+    }]
+  }
+}` });
+  S.push({ phase: "Plus tard : connexion (OpenID4VP)", from: "W", to: "CI", req: "POST vp_token", res: "session ouverte", title: "Présentation et identification",
+    desc: "Le wallet présente l'attestation avec un Key Binding JWT signé par la clé enregistrée à l'enrôlement. L'application vérifie la signature, le nonce et la clé, retrouve le compte par account_id et ouvre la session.",
+    notes: ["La vérification du KB-JWT contre cnf est ce qui prouve que c'est bien le wallet enrôlé."],
+    reqCode: `POST /vp/response HTTP/1.1
+Host: app.example.fr
+Content-Type: application/x-www-form-urlencoded
+
+vp_token={"compte":["eyJhbGciOiJFUzI1NiIs...~eyJ0eXAiOiJrYitqd3Qi..."]}
+&state=...`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "redirect_uri": "https://app.example.fr/accueil#session=..."
+}` });
+  return S.map(s => ({ ...s, fields: FIELDS[s.title] || [], refs: REFS[s.title] || [] }));
+}
+
+/* ---------- état ---------- */
+let nonceOn = true, grant = "pre", deferred = false, steps = [], cur = 0, playing = false, timer = null, anim = 0;
+const svg = document.getElementById("svg"), detail = document.getElementById("detail"), progress = document.getElementById("progress");
+const NS = "http://www.w3.org/2000/svg";
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function color(a) { return `var(--c-${a})`; }
+
+function arrow(g, x1, x2, y, col, dashed, label, cls) {
+  const grp = el("g", cls ? { class: cls } : {}, g);
+  const dir = x2 > x1 ? 1 : -1;
+  el("line", { x1, y1: y, x2: x2 - dir * 7, y2: y, stroke: col, "stroke-width": 2, "stroke-dasharray": dashed ? "5 4" : "none" }, grp);
+  el("polygon", { points: `${x2},${y} ${x2 - dir * 9},${y - 4.5} ${x2 - dir * 9},${y + 4.5}`, fill: col }, grp);
+  el("text", { x: (x1 + x2) / 2, y: y - 7, "text-anchor": "middle", class: "lbl" }, grp, label);
+}
+
+function layout() {
+  let y = 76; const rows = []; let lastPhase = null;
+  steps.forEach(s => {
+    const phaseRow = s.phase !== lastPhase; lastPhase = s.phase;
+    if (phaseRow) y += 20;
+    const h = s.self ? 52 : (s.res ? 62 : 42);
+    rows.push({ y, h, phaseRow }); y += h;
+  });
+  return { rows, H: y + 20 };
+}
+
+function drawSvg() {
+  const { rows, H } = layout();
+  svg.setAttribute("viewBox", `0 0 640 ${H}`);
+  svg.replaceChildren();
+  // lignes de vie
+  for (const k in ACTORS) {
+    const a = ACTORS[k];
+    el("line", { x1: a.x, y1: 54, x2: a.x, y2: H - 8, stroke: "var(--line)", "stroke-width": 1.5, "stroke-dasharray": "3 4" }, svg);
+  }
+  steps.forEach((s, i) => {
+    const r = rows[i];
+    if (r.phaseRow) el("text", { x: 8, y: r.y - 6, class: "phase" }, svg, s.phase.toUpperCase());
+    const g = el("g", { class: "row", "data-i": i, tabindex: -1 }, svg);
+    el("rect", { x: 0, y: r.y, width: 640, height: r.h, class: "hit" }, g);
+    el("text", { x: 8, y: r.y + 22, style: "font-size:10.5px;fill:var(--muted)" }, g, String(i + 1).padStart(2, "0"));
+    if (s.self) {
+      const x = ACTORS[s.self].x;
+      el("rect", { x: x + 10, y: r.y + 10, width: 150, height: 32, rx: 6, fill: "var(--surface)", stroke: color(s.self), "stroke-width": 2, class: "sbox" }, g);
+      el("text", { x: x + 85, y: r.y + 30, "text-anchor": "middle" }, g, s.req);
+    } else {
+      const x1 = ACTORS[s.from].x, x2 = ACTORS[s.to].x, y1 = r.y + 24;
+      arrow(g, x1, x2, y1, color(s.from), false, s.req);
+      if (s.res) arrow(g, x2, x1, y1 + 30, color(s.to), true, s.res, "res");
+    }
+    g.addEventListener("click", () => { stop(); go(i); });
+  });
+  // en-têtes d'acteurs (au-dessus)
+  for (const k in ACTORS) {
+    const a = ACTORS[k], g = el("g", { class: "actor" }, svg);
+    el("rect", { x: a.x - 86, y: 12, width: 172, height: 38, rx: 8, fill: "var(--surface)", stroke: color(k), "stroke-width": 2 }, g);
+    el("text", { x: a.x, y: 36, "text-anchor": "middle", style: `fill:${color(k)}` }, g, a.name);
+  }
+  svg._rows = rows;
+}
+
+function packet() {
+  svg.querySelectorAll(".packet").forEach(p => p.remove());
+  const s = steps[cur], r = svg._rows[cur];
+  if (reduce || s.self) return;
+  const id = ++anim;
+  const x1 = ACTORS[s.from].x, x2 = ACTORS[s.to].x, y = r.y + 24;
+  const dot = el("circle", { r: 6, cy: y, cx: x1, fill: color(s.from), class: "packet" }, svg);
+  const t0 = performance.now(), D = 700;
+  function frame(t) {
+    if (id !== anim) return dot.remove();
+    const e = Math.min(1, (t - t0) / D), k = e < .5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+    if (e < 1 || !s.res) {
+      dot.setAttribute("cx", x1 + (x2 - x1) * k);
+      if (e < 1) return requestAnimationFrame(frame);
+      return setTimeout(() => dot.remove(), 300);
+    }
+    // retour
+    const e2 = Math.min(1, (t - t0 - D - 100) / D);
+    if (e2 < 0) return requestAnimationFrame(frame);
+    const k2 = e2 < .5 ? 2 * e2 * e2 : 1 - Math.pow(-2 * e2 + 2, 2) / 2;
+    dot.setAttribute("cy", y + 30); dot.setAttribute("fill", color(s.to));
+    dot.setAttribute("cx", x2 + (x1 - x2) * k2);
+    if (e2 < 1) requestAnimationFrame(frame); else setTimeout(() => dot.remove(), 300);
+  }
+  requestAnimationFrame(frame);
+}
+
+function esc(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function hl(code) {
+  return esc(code).split("\n").map(line => {
+    if (/^(GET|POST|HTTP\/)/.test(line)) return `<span class="h">${line}</span>`;
+    return line.replace(/("(?:[^"\\]|\\.)*")(\s*:)?/g, (m, s, c) => c ? `<span class="k">${s}</span>${c}` : `<span class="s">${s}</span>`);
+  }).join("\n");
+}
+
+function renderDetail() {
+  const s = steps[cur];
+  const route = s.self
+    ? `<span class="chip" style="color:${color(s.self)}">${ACTORS[s.self].name}</span> <span>calcul local</span>`
+    : `<span class="chip" style="color:${color(s.from)}">${ACTORS[s.from].name}</span> → <span class="chip" style="color:${color(s.to)}">${ACTORS[s.to].name}</span>`;
+  detail.innerHTML = `
+    <div class="eyebrow"><span>${s.phase}</span><span>Étape ${cur + 1} / ${steps.length}</span></div>
+    <h2>${s.title}${s.optional ? ' <span class="opt">Optionnel</span>' : ""}</h2>
+    <div class="route">${route}</div>
+    <p>${s.desc}</p>
+    ${s.notes?.length ? `<ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
+    <div class="code"><h3>${s.self ? "Proof JWT" : s.res ? "Requête" : "Message"}</h3><pre>${hl(s.reqCode)}</pre></div>
+    ${s.resCode ? `<div class="code"><h3>Réponse</h3><pre>${hl(s.resCode)}</pre></div>` : ""}
+    ${s.fields.length ? `<div class="fields"><h3>Rôle des champs</h3><dl>${s.fields.map(([k, v]) => { const u = FIELD_REF[s.title + "|" + k] || FIELD_REF[k]; return `<div><dt>${u ? `<a href="${u}" target="_blank" rel="noopener">${esc(k)}</a>` : esc(k)}</dt><dd>${v}</dd></div>`; }).join("")}</dl></div>` : ""}
+    ${s.refs.length ? `<div class="refs"><h3>Dans la spécification</h3><ul>${s.refs.map(([t, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${t}</a></li>`).join("")}</ul></div>` : ""}`;
+}
+
+function renderProgress() {
+  progress.replaceChildren();
+  steps.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.style.background = `var(${PHASE_COLOR[s.phase]})`;
+    b.className = i < cur ? "done" : i === cur ? "cur" : "";
+    b.setAttribute("aria-label", `Étape ${i + 1} : ${s.title}`);
+    b.onclick = () => { stop(); go(i); };
+    progress.appendChild(b);
+  });
+}
+
+function go(i) {
+  cur = Math.max(0, Math.min(steps.length - 1, i));
+  svg.querySelectorAll(".row").forEach((g, j) => {
+    g.classList.remove("past", "cur", "future");
+    void g.getBBox; // relance l'animation CSS
+    g.classList.add(j < cur ? "past" : j === cur ? "cur" : "future");
+  });
+  const curRow = svg.querySelector(".row.cur");
+  if (curRow) { curRow.querySelectorAll(".res, .sbox").forEach(n => { n.style.animation = "none"; n.getBoundingClientRect(); n.style.animation = ""; }); }
+  renderDetail(); renderProgress(); packet();
+}
+
+function rebuild() {
+  stop(); steps = buildSteps(nonceOn); drawSvg(); go(0);
+}
+function tick() {
+  if (cur >= steps.length - 1) { stop(); return; }
+  go(cur + 1); timer = setTimeout(tick, 3800);
+}
+function start() {
+  if (cur >= steps.length - 1) go(0);
+  playing = true; document.getElementById("play").textContent = "❚❚ Pause";
+  timer = setTimeout(tick, 2400);
+}
+function stop() {
+  playing = false; clearTimeout(timer); document.getElementById("play").textContent = "▶ Lecture";
+}
+
+document.getElementById("play").onclick = () => playing ? stop() : start();
+document.getElementById("next").onclick = () => { stop(); go(cur + 1); };
+document.getElementById("prev").onclick = () => { stop(); go(cur - 1); };
+document.getElementById("nonce").onchange = e => { nonceOn = e.target.checked; rebuild(); };
+document.getElementById("reset").onclick = () => { stop(); go(0); start(); };
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, button")) { if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; }
+  if (e.key === "ArrowRight") { stop(); go(cur + 1); }
+  else if (e.key === "ArrowLeft") { stop(); go(cur - 1); }
+  else if (e.key === " ") { e.preventDefault(); playing ? stop() : start(); }
+});
+
+rebuild();
+</script>
+</body>
+</html>

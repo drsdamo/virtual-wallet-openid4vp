@@ -120,7 +120,7 @@ réponse mdoc en mode `query`/`fragment`, DC API.
 
 ## Recevoir une attestation (OpenID4VCI)
 
-Scénario de [l'animation](docs/openid4vci-animation.html) (PR #2) : le porteur, déjà connecté chez l'émetteur, y demande
+Scénario de [l'animation](docs/openid4vci-animation.html) : le porteur, déjà connecté chez l'émetteur, y demande
 l'enrôlement de son wallet ; l'émetteur affiche une Credential Offer pré-autorisée. Coller l'offre dans la page
 (*Recevoir une attestation*), ou `POST /api/offers`, ou ouvrir `http://localhost:8080/?offer=<url-encodée>`.
 
@@ -260,3 +260,7 @@ révocation) jusqu'à un certificat de `wallet.verifier-trust-anchors`, ou conti
 3. Flux de présentation : résolution, sélection DCQL, KB-JWT / DeviceResponse, `direct_post(.jwt)`, UI minimale ✅
 4. Outils de test : journal des échanges, injection d'erreurs, trust store ✅ — essai contre le verifier de référence EUDI à faire
 5. Réception OpenID4VCI (pré-autorisé, proof JWT, SD-JWT VC / mdoc), présentation des credentials reçus ✅ — DPoP à faire
+
+## Documentation
+
+- [`docs/openid4vci-animation.html`](docs/openid4vci-animation.html) : animation de l'enrôlement d'un wallet par OpenID4VCI (grant pré-autorisé, endpoints obligatoires) : l'application émet une attestation de compte, réutilisée ensuite pour se connecter par OpenID4VP. À ouvrir dans un navigateur ; le wallet joue le porteur de ce scénario (voir *Recevoir une attestation*).
