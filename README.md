@@ -1,7 +1,7 @@
 # virtual-wallet-openid4vp
 
-Wallet de test côté serveur pour éprouver des **verifiers OpenID4VP** (présentation uniquement).
-Formats visés : SD-JWT VC et mdoc (ISO 18013-5).
+Wallet de test côté serveur pour éprouver des **verifiers OpenID4VP**, et recevoir des attestations d'un émetteur
+**OpenID4VCI** (grant pré-autorisé) pour les présenter ensuite. Formats visés : SD-JWT VC et mdoc (ISO 18013-5).
 
 Stack : Java 21, Spring Boot 4.1, Maven, [eudi-lib-jvm-openid4vp-kt](https://github.com/eu-digital-identity-wallet/eudi-lib-jvm-openid4vp-kt) (protocole),
 [eudi-lib-jvm-sdjwt-kt](https://github.com/eu-digital-identity-wallet/eudi-lib-jvm-sdjwt-kt) (SD-JWT VC), [Multipaz](https://github.com/openwallet-foundation/multipaz) (mdoc).
@@ -19,8 +19,8 @@ Packages par domaine sous `io.github.wallet` (Java dans `src/main/java`, Kotlin 
 | `<domaine>.support` | Classes de support (enums, clés, adaptateur EUDI…) |
 | `<domaine>.web` | Controllers |
 
-Domaines : `identity` (identités et claims), `credentials` (autorité de test, émission), `presentation`
-(flux OpenID4VP).
+Domaines : `identity` (identités et claims), `credentials` (autorité de test, émission, stock), `presentation`
+(flux OpenID4VP), `issuance` (réception OpenID4VCI).
 
 Le code est en Java, sauf les classes qui appellent directement des API Kotlin (fonctions `suspend`, value classes,
 DSL de construction) des libs EUDI et Multipaz. Elles exposent une API Java bloquante :
@@ -35,6 +35,7 @@ DSL de construction) des libs EUDI et Multipaz. Elles exposent une API Java bloq
 | `presentation.support.PresentationBuilder` | présentation SD-JWT et signature mdoc (`suspend`) |
 | `credentials.service.TestCredentialIssuer` | DSL `sdJwt { }` et signature COSE (`suspend`) |
 | `credentials.support.WalletKeyMaterial(Loader)` | génération de clés et certificats Multipaz (`suspend`) |
+| `credentials.support.ReceivedCredentialReader` | vérification SD-JWT (`Result`, `suspend`) et décodage COSE/MSO Multipaz |
 
 ## Logs
 
@@ -44,7 +45,7 @@ Chaque requête entrante porte un `requestId` ; les appels vers un verifier port
 | Catégorie | INFO | DEBUG |
 |---|---|---|
 | `io.github.wallet.http.in` | méthode, URI, statut, durée des appels `/api` | en-têtes et corps (8 Ko max), autres chemins |
-| `io.github.wallet.http.out` | méthode, URL, statut, durée des appels aux verifiers | en-têtes et corps (dont le `vp_token`) |
+| `io.github.wallet.http.out` | méthode, URL, statut, durée des appels aux verifiers et émetteurs | en-têtes et corps (dont le `vp_token`) |
 | `io.github.wallet` | opérations métier (identités, émission, présentation) | détail (requêtes SQL, matching DCQL, claims émis) |
 
 Exemple : `./mvnw spring-boot:run -Dspring-boot.run.arguments=--logging.level.io.github.wallet=DEBUG`.
@@ -117,6 +118,67 @@ réponse mdoc en mode `query`/`fragment`, DC API.
 | `GET` | `/api/presentations/{id}/exchanges` | échanges HTTP d'une présentation |
 | `GET` | `/api/presentations/exchanges` | 500 derniers échanges HTTP |
 
+## Recevoir une attestation (OpenID4VCI)
+
+Scénario de [l'animation](docs/openid4vci-animation.html) (PR #2) : le porteur, déjà connecté chez l'émetteur, y demande
+l'enrôlement de son wallet ; l'émetteur affiche une Credential Offer pré-autorisée. Coller l'offre dans la page
+(*Recevoir une attestation*), ou `POST /api/offers`, ou ouvrir `http://localhost:8080/?offer=<url-encodée>`.
+
+1. **Offre** : `openid-credential-offer://?credential_offer=…` (par valeur), `…?credential_offer_uri=…` (par
+   référence) ou JSON brut. Seul le grant `pre-authorized_code` est géré, avec ou sans `tx_code`.
+2. **Metadata** : `/.well-known/openid-credential-issuer` puis `/.well-known/oauth-authorization-server` (à
+   défaut `openid-configuration`) de l'AS de l'offre, sinon du premier `authorization_servers`, sinon de
+   l'émetteur. Forme normative (suffixe inséré avant le chemin), puis forme concaténée si 404.
+   `credential_issuer` doit être identique à celui de l'offre.
+3. L'offre est **mise en attente** : la carte affiche l'émetteur, les credentials proposés, le champ `tx_code`
+   et l'identité qui les recevra. **Accepter** déroule la suite ; **Ignorer** n'envoie rien à l'émetteur.
+4. **Token** : `grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code`, `pre-authorized_code`, `tx_code`.
+5. **Proof** : par credential, une **clé P-256 neuve** (deux credentials ne sont pas corrélables par leur clé) et un
+   proof JWT `openid4vci-proof+jwt` (`jwk`, `aud` = `credential_issuer`, `iat`, `nonce` du nonce endpoint s'il
+   existe, `c_nonce` du token sinon ; pas d'`iss` : accès anonyme).
+6. **Credential** : `credential_configuration_id` (ou `credential_identifier` si le token en renvoie), `proofs.jwt`.
+   Sur `invalid_nonce`, un second essai avec un nouveau nonce. Puis `credential_accepted` au notification endpoint.
+7. **Contrôle et stockage** : le credential est lu (SD-JWT : signature vérifiée si `x5c`, `typ`, `vct`, `cnf` = clé
+   du proof ; mdoc : signature `x5chain`, empreintes du MSO, `deviceKey` = clé du proof). Une anomalie non
+   bloquante devient un **avertissement** (affiché et conservé) : le credential reste présentable, pour tester ce
+   qu'en fait un verifier. Il est stocké en SQLite (table `received_credential`, avec la clé privée en JWK) et
+   rechargé au démarrage.
+
+Le credential reçu rejoint ceux de l'identité choisie et se **présente en OpenID4VP** comme les autres : le KB-JWT
+(ou la DeviceSignature mdoc) est signé par la clé enregistrée à l'enrôlement. Il n'est pas touché par les
+modifications de l'identité (contrairement aux credentials de test, réémis) et disparaît avec elle.
+
+Non géré : grant `authorization_code`, DPoP (l'offre l'indique quand l'AS l'annonce), chiffrement de la réponse
+credential, metadata signées, émission différée, attestation de clé, credentials autres que SD-JWT VC / mdoc.
+Le wallet ne joue pas l'émetteur : l'application à tester le fait.
+
+| Méthode | Chemin | Rôle |
+|---|---|---|
+| `POST` | `/api/offers` `{"offer": "…"}` | lit l'offre et les metadata, la met en attente, renvoie un `id` |
+| `GET` | `/api/offers/pending` | offres en attente |
+| `GET` / `DELETE` | `/api/offers/{id}` | une offre / l'ignorer |
+| `POST` | `/api/offers/{id}/accept` `{"txCode", "identityId", "faults"}` | émission ; **502** si l'émetteur refuse (`step`, `oauthError`) |
+| `GET` | `/api/offers/faults` | défauts injectables |
+| `GET` | `/api/offers/{id}/exchanges`, `/api/offers/exchanges` | échanges HTTP avec l'émetteur |
+| `GET` | `/api/received-credentials` | credentials reçus et leurs avertissements |
+| `DELETE` | `/api/received-credentials/{id}` | supprime un credential reçu |
+
+### Tester la robustesse d'un émetteur
+
+`accept` prend aussi `faults` ; un émetteur correct doit refuser chacun :
+
+| Défaut | Effet |
+|---|---|
+| `PROOF_WRONG_AUDIENCE` / `PROOF_WRONG_NONCE` / `PROOF_NO_NONCE` | `aud` / `nonce` du proof incorrect ou absent (pas de nouvel essai) |
+| `PROOF_STALE` | `iat` du proof daté de la veille |
+| `PROOF_WRONG_TYP` | `typ` `JWT` au lieu de `openid4vci-proof+jwt` |
+| `PROOF_BAD_SIGNATURE` / `PROOF_KEY_MISMATCH` | signature altérée / faite par une autre clé que le `jwk` |
+| `ACCESS_TOKEN_TAMPERED` | access token altéré au credential endpoint |
+| `TOKEN_REPLAY` | rejoue le `pre-authorized_code` après usage ; avertissement si l'émetteur l'accepte |
+
+`IssuanceApiTests` déroule le scénario complet contre un émetteur de test (offre avec `tx_code`, nonce, proof,
+SD-JWT VC `account_id`) puis la présentation OpenID4VP du credential reçu.
+
 ## Tester la robustesse d'un verifier
 
 `accept` prend un corps optionnel `{"faults": ["SD_JWT_WRONG_NONCE", …]}` (cases à cocher dans la page). Un verifier
@@ -155,8 +217,9 @@ Résultat au 2026-11-03 : mDL mdoc accepté de bout en bout ; PID SD-JWT conform
 ## Collection Bruno
 
 `bruno/` contient une collection [Bruno](https://www.usebruno.com/) documentée (onglet *Docs* de la collection,
-de chaque dossier et de chaque requête) : infos, CRUD des identités, présentation, injection de défauts et
-scénario complet contre le verifier EUDI. Ouvrir le dossier dans Bruno et choisir l'environnement `local`.
+de chaque dossier et de chaque requête) : infos, CRUD des identités, présentation, injection de défauts,
+scénario complet contre le verifier EUDI et réception OpenID4VCI (`06 Emission OpenID4VCI`, qui demande une offre
+réelle dans la variable `credentialOffer`). Ouvrir le dossier dans Bruno et choisir l'environnement `local`.
 
 En ligne de commande (app démarrée sur le port 8080) :
 
@@ -187,7 +250,7 @@ révocation) jusqu'à un certificat de `wallet.verifier-trust-anchors`, ou conti
 | Propriété | Défaut | Rôle |
 |---|---|---|
 | `wallet.trust-all-verifiers` | `false` | Accepte toute chaîne de certificats pour les clients `x509_san_dns` / `x509_hash`. Réservé aux tests. |
-| `wallet.data-dir` | `./wallet-data` | Clés et certificats PEM de l'autorité de test et du wallet. |
+| `wallet.data-dir` | `./wallet-data` | Clés et certificats PEM de l'autorité de test et du wallet, base SQLite (identités, credentials reçus). |
 | `wallet.verifier-trust-anchors` | `[]` | Fichiers PEM des racines de verifiers de confiance. |
 
 ## Feuille de route
@@ -196,3 +259,4 @@ révocation) jusqu'à un certificat de `wallet.verifier-trust-anchors`, ou conti
 2. Credentials de test (SD-JWT VC, mdoc) émis au démarrage, clé wallet ✅
 3. Flux de présentation : résolution, sélection DCQL, KB-JWT / DeviceResponse, `direct_post(.jwt)`, UI minimale ✅
 4. Outils de test : journal des échanges, injection d'erreurs, trust store ✅ — essai contre le verifier de référence EUDI à faire
+5. Réception OpenID4VCI (pré-autorisé, proof JWT, SD-JWT VC / mdoc), présentation des credentials reçus ✅ — DPoP à faire

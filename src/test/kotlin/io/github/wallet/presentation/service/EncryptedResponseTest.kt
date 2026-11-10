@@ -65,7 +65,7 @@ class EncryptedResponseTest {
             jwe = parseQueryString(req.body.toByteArray().decodeToString())["response"]
             respond("{}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
         }
-        val service = PresentationService(OpenId4VpWalletClient(WalletConfigFactory().create(false), engine), store, keys)
+        val service = PresentationService(OpenId4VpWalletClient(WalletConfigFactory().create(false), engine), store)
 
         val pending = assertIs<PendingPresentation.Valid>(service.resolve(requestUri(), "trace-enc"))
         assertTrue(pending.verifier.encryptedResponse)

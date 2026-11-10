@@ -2,7 +2,6 @@ package io.github.wallet.presentation.config;
 
 import io.github.wallet.config.WalletProperties;
 import io.github.wallet.credentials.service.CredentialStore;
-import io.github.wallet.credentials.support.WalletKeyMaterial;
 import io.github.wallet.presentation.service.PendingPresentationRegistry;
 import io.github.wallet.presentation.service.PresentationService;
 import io.github.wallet.presentation.support.ClaimValueReader;
@@ -28,8 +27,8 @@ class PresentationConfiguration {
     }
 
     @Bean
-    PresentationService presentationService(OpenId4VpWalletClient client, CredentialStore store, WalletKeyMaterial keys) {
-        return new PresentationService(client, store, keys);
+    PresentationService presentationService(OpenId4VpWalletClient client, CredentialStore store) {
+        return new PresentationService(client, store);
     }
 
     /** Présentations reçues en attente de la décision du porteur. */

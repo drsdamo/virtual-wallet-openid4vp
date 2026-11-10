@@ -3,6 +3,7 @@ package io.github.wallet.credentials.support;
 import com.nimbusds.jwt.SignedJWT;
 import eu.europa.ec.eudi.sdjwt.SdJwt;
 import java.util.Map;
+import org.multipaz.crypto.EcPrivateKey;
 
 /** Credential SD-JWT VC. Classe à getters (et non record) pour l'accès par propriété depuis Kotlin. */
 public final class SdJwtVcCredential implements WalletCredential {
@@ -14,17 +15,22 @@ public final class SdJwtVcCredential implements WalletCredential {
     private final SdJwt<SignedJWT> sdJwt;
     private final String serialized;
     private final Map<String, Object> claims;
+    private final String issuer;
+    private final EcPrivateKey holderKey;
 
     /**
      * @param sdJwt      SD-JWT émis avec toutes ses disclosures, nécessaire pour construire une présentation
      * @param serialized sérialisation compacte {@code <jwt>~<disclosure>~...~}
      */
-    public SdJwtVcCredential(String id, String type, SdJwt<SignedJWT> sdJwt, String serialized, Map<String, Object> claims) {
+    public SdJwtVcCredential(String id, String type, SdJwt<SignedJWT> sdJwt, String serialized, Map<String, Object> claims,
+                            String issuer, EcPrivateKey holderKey) {
         this.id = id;
         this.type = type;
         this.sdJwt = sdJwt;
         this.serialized = serialized;
         this.claims = claims;
+        this.issuer = issuer;
+        this.holderKey = holderKey;
     }
 
     @Override
@@ -45,6 +51,16 @@ public final class SdJwtVcCredential implements WalletCredential {
     @Override
     public Map<String, Object> getClaims() {
         return claims;
+    }
+
+    @Override
+    public String getIssuer() {
+        return issuer;
+    }
+
+    @Override
+    public EcPrivateKey getHolderKey() {
+        return holderKey;
     }
 
     public SdJwt<SignedJWT> getSdJwt() {

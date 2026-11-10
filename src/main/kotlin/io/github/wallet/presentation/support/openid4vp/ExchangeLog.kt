@@ -25,7 +25,7 @@ class TraceId(val value: String) : AbstractCoroutineContextElement(Key) {
     companion object Key : CoroutineContext.Key<TraceId>
 }
 
-/** Tampon circulaire en mémoire des [capacity] derniers échanges HTTP avec des verifiers. */
+/** Tampon circulaire en mémoire des [capacity] derniers échanges HTTP avec des verifiers (ou des émetteurs OpenID4VCI). */
 class ExchangeLog(private val capacity: Int = 500) {
 
     private companion object {
@@ -44,7 +44,7 @@ class ExchangeLog(private val capacity: Int = 500) {
     fun clear() = entries.clear()
 
     /** Trace et enregistre l'échange ; les plus anciens sont évincés au-delà de [capacity]. */
-    internal fun add(exchange: HttpExchangeDTO) {
+    fun add(exchange: HttpExchangeDTO) {
         trace(exchange)
         entries.addLast(exchange)
         while (entries.size > capacity) entries.pollFirst()

@@ -2,7 +2,6 @@ package io.github.wallet.presentation.service;
 
 import eu.europa.ec.eudi.openid4vp.ResolvedRequestObject;
 import io.github.wallet.credentials.service.CredentialStore;
-import io.github.wallet.credentials.support.WalletKeyMaterial;
 import io.github.wallet.presentation.dto.HttpExchangeDTO;
 import io.github.wallet.presentation.support.DcqlMatcher;
 import io.github.wallet.presentation.support.Fault;
@@ -28,10 +27,10 @@ public class PresentationService {
     private final CredentialStore store;
     private final PresentationBuilder builder;
 
-    public PresentationService(OpenId4VpWalletClient client, CredentialStore store, WalletKeyMaterial keys) {
+    public PresentationService(OpenId4VpWalletClient client, CredentialStore store) {
         this.client = client;
         this.store = store;
-        this.builder = new PresentationBuilder(keys);
+        this.builder = new PresentationBuilder();
     }
 
     /** Résout la requête et choisit la première identité qui y répond. */

@@ -51,9 +51,11 @@
 <body>
 <main>
   <h1>Virtual Wallet</h1>
-  <p class="sub">Wallet de test OpenID4VP. Colle la requête du verifier (<code>openid4vp://…</code>, contenu du QR code)
+  <p class="sub">Wallet de test OpenID4VP / OpenID4VCI. Colle la requête du verifier (<code>openid4vp://…</code>, contenu du QR code)
     ou envoie-la par l'API (<code>POST /api/presentations</code>) : elle apparaît dans les demandes en attente.
+    Une offre d'émetteur (<code>openid-credential-offer://…</code>) se colle dans « Recevoir une attestation ».
     Racine de confiance à installer côté verifier : <a href="/api/trust/iaca.pem">iaca.pem</a>.</p>
+
 
   <section>
     <h2>Présenter au wallet</h2>
@@ -70,13 +72,21 @@
     <div id="inbox"></div>
   </section>
 
+  <section>
+    <h2>Recevoir une attestation (OpenID4VCI) <span class="badge" id="offers-count"></span></h2>
+    <textarea id="offer" placeholder="openid-credential-offer://?credential_offer=… ou credential_offer_uri=…"></textarea>
+    <button class="primary" id="resolve-offer">Lire l'offre</button>
+    <p class="err" id="offer-err"></p>
+    <div id="offers"></div>
+  </section>
+
   <section id="result" class="hidden">
     <h2>Résultat</h2>
     <div id="result-body"></div>
   </section>
 
   <section id="log" class="hidden">
-    <h2>Échanges HTTP avec le verifier</h2>
+    <h2 id="log-title">Échanges HTTP avec le verifier</h2>
     <div id="log-body"></div>
   </section>
 
@@ -126,9 +136,10 @@ function explain(body) {
   }
   return [form, ...decoded].filter(Boolean).join('\n\n');
 }
-function showLog(exchanges) {
+function showLog(exchanges, peer = 'verifier') {
   if (!exchanges || !exchanges.length) return;
   $('log').classList.remove('hidden');
+  $('log-title').textContent = `Échanges HTTP avec ${peer === 'verifier' ? 'le verifier' : "l'émetteur"}`;
   $('log-body').innerHTML = exchanges.map(e => `
     <details class="ex"><summary><code>${esc(e.method)}</code> ${esc(e.url)} → <span class="${e.status && e.status < 400 ? 'ok' : 'ko'}">${esc(e.status ?? e.error)}</span> · ${e.durationMs} ms</summary>
       ${e.requestBody ? `<div>Requête</div><pre>${esc(explain(e.requestBody) || e.requestBody)}</pre>` : ''}
@@ -243,15 +254,107 @@ $('inbox').addEventListener('click', (ev) => {
   answer(btn.closest('[data-id]'), btn.dataset.act);
 });
 
+
+// ---------------------------------------------------------------- OpenID4VCI
+let issuanceFaults = [];
+function identityOptions() {
+  return identities.map(({ identity: i }) => `<option value="${esc(i.id)}">${esc(i.givenName)} ${esc(i.familyName)}</option>`).join('');
+}
+// Carte d'offre : émetteur, credentials proposés, tx_code éventuel, identité qui les recevra.
+function offerCard(o) {
+  const when = new Date(o.receivedAt).toLocaleTimeString();
+  if (!o.valid) {
+    return `<h3 class="ko">Offre inutilisable</h3><p class="muted">Reçue à ${when} · étape ${esc(o.step)}</p><pre>${esc(o.error)}</pre>
+      <button data-act="dismiss">Ignorer</button>`;
+  }
+  const ok = o.credentials.filter(c => c.supported);
+  const tx = o.txCode;
+  return `
+    <h3>${esc(o.issuerName || o.credentialIssuer)} propose ${o.credentials.length > 1 ? 'des attestations' : 'une attestation'}</h3>
+    <p class="muted">Reçue à ${when} · <code>${esc(o.credentialIssuer)}</code></p>
+    ${o.credentials.map(c => `<div class="q"><strong>${esc(c.name || c.configurationId)}</strong>
+      <span class="muted">${esc(c.format || '?')} · <code>${esc(c.type || c.configurationId)}</code>${c.bound ? ' · liée à une clé du wallet' : ''}</span>
+      ${c.supported ? '' : `<p class="ko">✗ ${esc(c.reason)}</p>`}</div>`).join('')}
+    ${o.dpopSigningAlgs && o.dpopSigningAlgs.length ? `<p class="ko">Le serveur d'autorisation annonce DPoP, non géré par le wallet : le token peut être refusé.</p>` : ''}
+    ${tx ? `<label class="row">Code de transaction${tx.description ? ` (${esc(tx.description)})` : ''}
+      <input name="txCode" ${tx.length ? `maxlength="${tx.length}"` : ''} inputmode="${tx.inputMode === 'text' ? 'text' : 'numeric'}"></label>` : ''}
+    <label class="row">Ranger dans l'identité <select name="identityId">${identityOptions()}</select></label>
+    <details class="q"><summary class="muted">Détails techniques</summary>
+      <dl>
+        <dt>token</dt><dd><code>${esc(o.tokenEndpoint)}</code></dd>
+        <dt>nonce</dt><dd><code>${esc(o.nonceEndpoint || 'absent')}</code></dd>
+        <dt>credential</dt><dd><code>${esc(o.credentialEndpoint)}</code></dd>
+      </dl><pre>${esc(JSON.stringify(JSON.parse(o.offer), null, 2))}</pre></details>
+    <details class="q"><summary class="muted">Injecter des défauts (test de robustesse de l'émetteur)</summary>
+      ${issuanceFaults.map(f => `<label class="fault"><input type="checkbox" value="${esc(f.name)}"> <code>${esc(f.name)}</code>${esc(f.description)}</label>`).join('')}</details>
+    <button class="primary" data-act="accept" ${ok.length ? '' : 'disabled'}>Accepter</button>
+    <button data-act="dismiss">Ignorer</button>
+    <p class="err"></p>`;
+}
+let firstOfferPoll = true;
+async function pollOffers() {
+  let list;
+  try { list = await call('GET', '/api/offers/pending'); } catch { return; }
+  const ids = new Set(list.map(o => o.id));
+  document.querySelectorAll('#offers [data-id]').forEach(el => { if (!ids.has(el.dataset.id)) el.remove(); });
+  for (const o of list) {
+    if (document.querySelector(`#offers [data-id="${o.id}"]`)) continue;
+    const el = document.createElement('div');
+    el.className = `card${o.valid ? '' : ' invalid'}${firstOfferPoll ? '' : ' new'}`;
+    el.dataset.id = o.id;
+    el.innerHTML = offerCard(o);
+    $('offers').append(el);
+  }
+  firstOfferPoll = false;
+  $('offers-count').textContent = list.length || '';
+}
+$('resolve-offer').onclick = async () => {
+  $('offer-err').textContent = '';
+  try {
+    const o = await call('POST', '/api/offers', { offer: $('offer').value });
+    showLog(o.exchanges, 'émetteur');
+    await pollOffers();
+  } catch (e) { $('offer-err').textContent = e.message; }
+};
+$('offers').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-act]'); if (!btn) return;
+  const el = btn.closest('[data-id]'), id = el.dataset.id, err = el.querySelector('.err');
+  if (btn.dataset.act === 'dismiss') { await call('DELETE', `/api/offers/${id}`).catch(() => {}); el.remove(); await pollOffers(); return; }
+  const tx = el.querySelector('[name=txCode]'), idn = el.querySelector('[name=identityId]');
+  const faults = [...el.querySelectorAll('.fault input:checked')].map(i => i.value);
+  el.querySelectorAll('button').forEach(b => b.disabled = true);
+  const res = await fetch(`/api/offers/${id}/accept`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ txCode: tx ? tx.value : null, identityId: idn ? idn.value : null, faults }) });
+  const r = await res.json().catch(() => ({ error: res.status }));
+  if (res.status === 400) { if (err) err.textContent = r.error; el.querySelectorAll('button').forEach(b => b.disabled = false); return; }
+  const got = r.credentials || [];
+  const injected = r.faults && r.faults.length ? `<p>Défauts injectés : ${r.faults.map(f => `<code>${esc(f)}</code>`).join(' ')}</p>` : '';
+  showResult(`<p class="${r.success ? 'ok' : 'ko'}">${r.success ? `${got.length} attestation(s) reçue(s)` : `Émission interrompue (${esc(r.step)}) : ${esc(r.error)}`}</p>${injected}
+    ${got.map(c => `<p>✓ <code>${esc(c.type)}</code> → <code>${esc(c.id)}</code></p>`).join('')}
+    ${[...(r.warnings || []), ...got.flatMap(c => c.warnings)].map(w => `<p class="ko">⚠ ${esc(w)}</p>`).join('')}`);
+  showLog(r.exchanges, 'émetteur');
+  await pollOffers();
+  loadCredentials();
+});
+
 let identities = [];
 function loadCredentials() {
   call('GET', '/api/credentials').then(list => {
     const names = Object.fromEntries(identities.map(v => [v.identity.id, `${v.identity.givenName} ${v.identity.familyName}`]));
-    $('credentials').innerHTML = list.map(c => `
-      <details class="q"><summary><strong>${esc(names[c.id.split(':')[0]] || '')}</strong> · ${esc(c.id.split(':')[1])} · <code>${esc(c.type)}</code></summary>
-        <pre>${esc(JSON.stringify(c.claims, null, 2))}</pre></details>`).join('');
+    $('credentials').innerHTML = list.map(c => {
+      const received = c.id.split(':')[1].startsWith('vci-');
+      return `<details class="q"><summary><strong>${esc(names[c.id.split(':')[0]] || '')}</strong> · ${esc(c.id.split(':')[1])} · <code>${esc(c.type)}</code>${received ? ` · reçue de <code>${esc(c.issuer)}</code>` : ''}</summary>
+        <pre>${esc(JSON.stringify(c.claims, null, 2))}</pre>
+        ${received ? `<button class="danger" data-del="${esc(c.id)}">Supprimer</button>` : ''}</details>`; }).join('');
   }).catch(e => $('credentials').textContent = e.message);
 }
+
+$('credentials').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-del]'); if (!btn) return;
+  await call('DELETE', `/api/received-credentials/${encodeURIComponent(btn.dataset.del)}`).catch(e => alertResult(e));
+  loadCredentials();
+});
+function alertResult(e) { showResult(`<p class="ko">${esc(e.message)}</p>`); }
 
 const TYPES = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE'], SCOPES = ['ALL', 'SD_JWT', 'MDOC'];
 const opts = (list, sel) => list.map(o => `<option ${o === sel ? 'selected' : ''}>${o}</option>`).join('');
@@ -314,12 +417,14 @@ $('new-identity').addEventListener('submit', async (ev) => {
   catch (e) { $('new-identity-err').textContent = e.message; }
 });
 // Défauts et identités d'abord (les cartes s'en servent), puis interrogation de la file d'attente.
-Promise.allSettled([call('GET', '/api/presentations/faults').then(list => { faults = list; }), loadIdentities()])
+Promise.allSettled([call('GET', '/api/presentations/faults').then(list => { faults = list; }),
+    call('GET', '/api/offers/faults').then(list => { issuanceFaults = list; }), loadIdentities()])
   .then(() => {
-    poll();
-    setInterval(poll, 2000);
-    const fromQuery = new URLSearchParams(location.search).get('request');
-    if (fromQuery) { $('uri').value = fromQuery; $('resolve').click(); }
+    poll(); pollOffers();
+    setInterval(() => { poll(); pollOffers(); }, 2000);
+    const params = new URLSearchParams(location.search);
+    if (params.get('request')) { $('uri').value = params.get('request'); $('resolve').click(); }
+    if (params.get('offer')) { $('offer').value = params.get('offer'); $('resolve-offer').click(); }
   });
 </script>
 </body>

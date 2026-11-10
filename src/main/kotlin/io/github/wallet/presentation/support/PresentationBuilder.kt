@@ -2,7 +2,7 @@ package io.github.wallet.presentation.support
 
 import io.github.wallet.credentials.support.MdocCredential
 import io.github.wallet.credentials.support.SdJwtVcCredential
-import io.github.wallet.credentials.support.WalletKeyMaterial
+import io.github.wallet.credentials.support.WalletCredential
 
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.crypto.ECDSASigner
@@ -36,8 +36,11 @@ import java.util.Base64
 import java.util.Date
 import kotlinx.coroutines.runBlocking
 
-/** Construit les entrées du `vp_token` : SD-JWT VC + KB-JWT, ou DeviceResponse mdoc en base64url. */
-class PresentationBuilder(private val keys: WalletKeyMaterial) {
+/**
+ * Construit les entrées du `vp_token` : SD-JWT VC + KB-JWT, ou DeviceResponse mdoc en base64url.
+ * Chaque présentation est signée par la clé du porteur liée au credential ([WalletCredential.getHolderKey]).
+ */
+class PresentationBuilder {
 
     /** Présentation du credential retenu pour [match], avec les [faults] demandés. */
     @JvmOverloads
@@ -71,7 +74,7 @@ class PresentationBuilder(private val keys: WalletKeyMaterial) {
                 val signingKey = if (Fault.SD_JWT_KB_WRONG_KEY in faults) {
                     Crypto.createEcPrivateKey(EcCurve.P256)
                 } else {
-                    keys.devicePrivateKey
+                    credential.holderKey
                 }
                 val holderJwk = ECKey.Builder(Curve.P_256, signingKey.publicKey.javaPublicKey as ECPublicKey).build()
                 val kbJwt = kbJwtIssuer(
@@ -153,7 +156,7 @@ class PresentationBuilder(private val keys: WalletKeyMaterial) {
         val deviceKey = if (Fault.MDOC_DEVICE_KEY_MISMATCH in faults) {
             AsymmetricKey.anonymous(Crypto.createEcPrivateKey(EcCurve.P256))
         } else {
-            keys.deviceKey
+            AsymmetricKey.anonymous(credential.holderKey)
         }
         val document = MdocDocument.fromNamespaces(
             sessionTranscript = sessionTranscript,

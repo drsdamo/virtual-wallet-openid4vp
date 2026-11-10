@@ -1,6 +1,7 @@
 package io.github.wallet.credentials.support;
 
 import java.util.Map;
+import org.multipaz.crypto.EcPrivateKey;
 import org.multipaz.cose.CoseSign1;
 import org.multipaz.mdoc.issuersigned.IssuerNamespaces;
 
@@ -14,15 +15,20 @@ public final class MdocCredential implements WalletCredential {
     private final CoseSign1 issuerAuth;
     private final IssuerNamespaces issuerNamespaces;
     private final Map<String, Object> claims;
+    private final String issuer;
+    private final EcPrivateKey holderKey;
 
     /** @param claims namespace → élément → valeur */
     public MdocCredential(String id, String type, CoseSign1 issuerAuth, IssuerNamespaces issuerNamespaces,
-                          Map<String, Object> claims) {
+                          Map<String, Object> claims,
+                          String issuer, EcPrivateKey holderKey) {
         this.id = id;
         this.type = type;
         this.issuerAuth = issuerAuth;
         this.issuerNamespaces = issuerNamespaces;
         this.claims = claims;
+        this.issuer = issuer;
+        this.holderKey = holderKey;
     }
 
     @Override
@@ -43,6 +49,16 @@ public final class MdocCredential implements WalletCredential {
     @Override
     public Map<String, Object> getClaims() {
         return claims;
+    }
+
+    @Override
+    public String getIssuer() {
+        return issuer;
+    }
+
+    @Override
+    public EcPrivateKey getHolderKey() {
+        return holderKey;
     }
 
     /** COSE_Sign1 de l'émetteur sur le MSO. */
