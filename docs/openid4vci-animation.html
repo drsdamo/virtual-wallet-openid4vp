@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>body{margin:0}[hidden]{display:none!important}</style>
-<title>Flux OpenID4VCI minimal</title>
+<title>Enrôlement wallet OpenID4VCI</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -83,15 +83,11 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
 <body>
 <div class="wrap">
   <header>
-    <h1>Flux OpenID4VCI minimal</h1>
-    <p>Émission d'une attestation (SD-JWT VC ou mdoc) vers un wallet, réduite aux seuls endpoints et paramètres obligatoires d'OpenID for Verifiable Credential Issuance 1.0. Nonce, différé, notification, PAR et DPoP sont retirés.</p>
+    <h1>Enrôlement wallet OpenID4VCI</h1>
+    <p>Un utilisateur déjà connecté à l'application y enrôle son wallet : l'application lui émet, par OpenID4VCI (grant pré-autorisé, endpoints obligatoires uniquement), une attestation contenant un identifiant de compte. Cette attestation servira ensuite à se connecter par OpenID4VP.</p>
   </header>
 
   <div class="bar">
-    <div class="seg" role="group" aria-label="Type de grant">
-      <button id="g-pre" aria-pressed="true">Pre-authorized code</button>
-      <button id="g-auth" aria-pressed="false">Authorization code</button>
-    </div>
     <div class="ctrl">
       <button id="prev" aria-label="Étape précédente">◀</button>
       <button id="play" class="play">▶ Lecture</button>
@@ -109,47 +105,50 @@ svg .phase { font-family: var(--f-body); font-size: 11px; font-weight: 600; lett
 </div>
 
 <script>
-const ACTORS = { U: { x: 74, name: "Utilisateur" }, W: { x: 234, name: "Wallet" }, AS: { x: 404, name: "Authorization Server" }, CI: { x: 566, name: "Credential Issuer" } };
-const PHASE_COLOR = { "Découverte": "--c-U", "Autorisation": "--c-AS", "Preuve de possession": "--c-W", "Émission": "--c-CI", "Différé": "--c-CI", "Clôture": "--c-U" };
-const ISS = "https://issuer.example.eu";
+const ACTORS = { U: { x: 100, name: "Utilisateur" }, W: { x: 320, name: "Wallet" }, CI: { x: 540, name: "Application (émetteur)" } };
+const PHASE_COLOR = { "Enrôlement": "--c-U", "Découverte": "--c-U", "Autorisation": "--c-AS", "Preuve de possession": "--c-W", "Émission": "--c-CI", "Plus tard : connexion (OpenID4VP)": "--line" };
+const ISS = "https://app.example.fr";
 const AS_URL = "https://auth.example.eu";
-const CFG = "eu.europa.ec.eudi.pid_vc_sd_jwt";
+const CFG = "compte_wallet";
 
-function buildSteps(grant) {
-  const pre = grant === "pre";
+function buildSteps() {
   const S = [];
-  const grantsJson = pre
-    ? `"grants": {
-    "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
-      "pre-authorized_code": "oaKazRN8I0IbtZ0C7JuMn5"
-    }
-  }`
-    : `"grants": {
-    "authorization_code": {}
-  }`;
-  S.push({ phase: "Découverte", from: "CI", to: "W", req: "Credential Offer", title: "Credential Offer",
-    desc: "L'émetteur transmet l'offre au wallet par un QR code ou un lien openid-credential-offer://. Ce n'est pas un appel d'endpoint : l'offre est passée par valeur.",
-    notes: [pre ? "Grant pré-autorisé : l'utilisateur a déjà été authentifié par l'émetteur." : "Grant authorization code : l'authentification a lieu sur l'Authorization Server.", "Optionnels retirés : tx_code, issuer_state, credential_offer_uri. L'offre elle-même est facultative (flux initié par le wallet)."],
+  S.push({ phase: "Enrôlement", from: "U", to: "CI", req: "« Associer mon wallet »", res: "page avec QR code", title: "Demande d'enrôlement",
+    desc: "L'utilisateur est déjà connecté à l'application (session ouverte, compte connu). Il demande à associer son wallet pour pouvoir, plus tard, se connecter avec lui.",
+    notes: ["L'application génère un pre-authorized_code à usage unique, court (quelques minutes), lié au compte de la session.", "L'authentification a déjà eu lieu : c'est exactement le cas d'usage du grant pré-autorisé. L'authorization code ferait se reconnecter l'utilisateur pour rien."],
+    reqCode: `POST /compte/wallet/enrolement HTTP/1.1
+Host: app.example.fr
+Cookie: SESSION=7f3a9c...`,
+    resCode: `HTTP/1.1 200 OK
+Content-Type: text/html
+
+<!-- QR code = Credential Offer, valable 5 min -->` });
+  S.push({ phase: "Découverte", from: "CI", to: "W", req: "Credential Offer (QR)", title: "Credential Offer",
+    desc: "L'utilisateur scanne le QR code avec son wallet (ou suit le lien openid-credential-offer:// sur le même appareil). L'offre porte le pre-authorized_code.",
+    notes: ["Sans tx_code (optionnel), quiconque voit le QR code avant l'utilisateur peut récupérer l'attestation à sa place. Pour un moyen de connexion, l'ajouter est à envisager."],
     reqCode: `openid-credential-offer://?credential_offer=
 {
   "credential_issuer": "${ISS}",
   "credential_configuration_ids": ["${CFG}"],
-  ${grantsJson}
+  "grants": {
+    "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
+      "pre-authorized_code": "oaKazRN8I0IbtZ0C7JuMn5"
+    }
+  }
 }` });
-  S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata émetteur", res: "200 metadata", title: "Metadata du Credential Issuer",
-    desc: "Seuls credential_issuer, credential_endpoint et credential_configurations_supported sont obligatoires. Aucun nonce_endpoint : la preuve ne portera donc pas de nonce.",
-    notes: ["authorization_servers est optionnel. Absent, l'émetteur joue lui-même le rôle d'Authorization Server ; il est gardé ici pour distinguer les deux rôles.", "proof_types_supported devient obligatoire dès que cryptographic_binding_methods_supported est présent."],
+  S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata émetteur", res: "200 metadata", title: "Metadata de l'émetteur",
+    desc: "Le wallet découvre le credential endpoint et le type d'attestation proposé. authorization_servers est absent : l'application est son propre Authorization Server.",
+    notes: ["Obligatoires : credential_issuer, credential_endpoint, credential_configurations_supported.", "L'attestation est liée à une clé du wallet (cnf). C'est indispensable : sans cela, une copie de l'attestation suffirait à se connecter."],
     reqCode: `GET /.well-known/openid-credential-issuer HTTP/1.1
-Host: issuer.example.eu`,
+Host: app.example.fr`,
     resCode: `HTTP/1.1 200 OK
 {
   "credential_issuer": "${ISS}",
-  "authorization_servers": ["${AS_URL}"],
   "credential_endpoint": "${ISS}/credential",
   "credential_configurations_supported": {
     "${CFG}": {
       "format": "dc+sd-jwt",
-      "vct": "urn:eudi:pid:1",
+      "vct": "${ISS}/vct/compte",
       "cryptographic_binding_methods_supported": ["jwk"],
       "proof_types_supported": {
         "jwt": { "proof_signing_alg_values_supported": ["ES256"] }
@@ -157,68 +156,34 @@ Host: issuer.example.eu`,
     }
   }
 }` });
-  S.push({ phase: "Découverte", from: "W", to: "AS", req: "GET metadata AS", res: "200 metadata", title: "Metadata de l'Authorization Server",
-    desc: "Métadonnées OAuth 2.0 (RFC 8414), nécessaires pour trouver le token endpoint" + (pre ? "." : " et l'authorization endpoint."),
-    notes: ["PAR, DPoP et pre-authorized_grant_anonymous_access_supported sont optionnels et retirés."],
+  S.push({ phase: "Découverte", from: "W", to: "CI", req: "GET metadata OAuth", res: "200 metadata", title: "Metadata OAuth de l'application",
+    desc: "Le wallet récupère le token endpoint, publié par l'application elle-même (RFC 8414).",
+    notes: [],
     reqCode: `GET /.well-known/oauth-authorization-server HTTP/1.1
-Host: auth.example.eu`,
+Host: app.example.fr`,
     resCode: `HTTP/1.1 200 OK
 {
-  "issuer": "${AS_URL}",${pre ? "" : `
-  "authorization_endpoint": "${AS_URL}/authorize",`}
-  "token_endpoint": "${AS_URL}/token"
+  "issuer": "${ISS}",
+  "token_endpoint": "${ISS}/token"
 }` });
-
-  if (pre) {
-    S.push({ phase: "Autorisation", from: "W", to: "AS", req: "POST /token", res: "200 access_token", title: "Requête token (pré-autorisée)",
-      desc: "Le wallet échange le pre-authorized_code contre un access token. Pas de navigateur, pas de PKCE.",
-      notes: ["Sans tx_code dans l'offre, quiconque récupère le QR code peut obtenir le jeton : c'est le prix du minimum.", "authorization_details dans la réponse est optionnel."],
-      reqCode: `POST /token HTTP/1.1
-Host: auth.example.eu
+  S.push({ phase: "Autorisation", from: "W", to: "CI", req: "POST /token", res: "200 access_token", title: "Requête token",
+    desc: "Le wallet échange le pre-authorized_code contre un access token. L'application invalide le code et rattache le jeton au compte de l'utilisateur.",
+    notes: ["Pas de client_id ni de PKCE dans ce grant."],
+    reqCode: `POST /token HTTP/1.1
+Host: app.example.fr
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code
 &pre-authorized_code=oaKazRN8I0IbtZ0C7JuMn5`,
-      resCode: tokenRes() });
-  } else {
-    S.push({ phase: "Autorisation", from: "U", to: "AS", req: "GET /authorize", res: "page de login", title: "Requête d'autorisation",
-      desc: "Sans PAR, le wallet ouvre le navigateur directement sur l'authorization endpoint avec tous les paramètres. L'utilisateur s'authentifie et consent.",
-      notes: ["La demande d'attestation passe par authorization_details (type openid_credential) ou par un scope.", "PKCE est montré car il est exigé par les bonnes pratiques OAuth (RFC 9700), même si OpenID4VCI ne l'impose pas seul."],
-      reqCode: `GET /authorize?response_type=code
-  &client_id=wallet-dev
-  &redirect_uri=https://wallet.example/cb
-  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
-  &code_challenge_method=S256
-  &authorization_details=[{"type":"openid_credential",
-     "credential_configuration_id":"${CFG}"}] HTTP/1.1
-Host: auth.example.eu`,
-      resCode: `HTTP/1.1 200 OK
-Content-Type: text/html
-
-<!-- formulaire d'authentification + consentement -->` });
-    S.push({ phase: "Autorisation", from: "AS", to: "W", req: "302 redirect ?code", title: "Retour du code d'autorisation",
-      desc: "L'AS redirige le navigateur vers le redirect_uri du wallet avec le code.",
-      notes: [],
-      reqCode: `HTTP/1.1 302 Found
-Location: https://wallet.example/cb?code=SplxlOBeZQQYbYS6WxSbIA` });
-    S.push({ phase: "Autorisation", from: "W", to: "AS", req: "POST /token", res: "200 access_token", title: "Requête token (authorization code)",
-      desc: "Le wallet échange le code contre un access token, avec le code_verifier PKCE.",
-      notes: ["Pas de DPoP ni de refresh_token dans le minimum."],
-      reqCode: `POST /token HTTP/1.1
-Host: auth.example.eu
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=authorization_code
-&code=SplxlOBeZQQYbYS6WxSbIA
-&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
-&redirect_uri=https://wallet.example/cb
-&client_id=wallet-dev`,
-      resCode: tokenRes() });
-  }
-
+    resCode: `HTTP/1.1 200 OK
+{
+  "access_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 300
+}` });
   S.push({ phase: "Preuve de possession", self: "W", req: "Signe le proof JWT", title: "Construction du proof JWT",
-    desc: "L'attestation est liée à une clé du wallet, donc une preuve de possession est exigée. Sans nonce endpoint, le claim nonce est absent.",
-    notes: ["Obligatoires : typ, alg, la clé (jwk ou kid), aud et iat.", pre ? "iss est omis : accès anonyme pré-autorisé." : "iss = client_id du wallet.", "Sans nonce, l'émetteur ne s'appuie que sur iat pour limiter le rejeu. C'est faible.", "Si l'attestation n'est liée à aucune clé, cette étape disparaît."],
+    desc: "Le wallet crée une paire de clés dédiée à ce compte et signe la preuve. La clé publique sera inscrite dans l'attestation.",
+    notes: ["Sans nonce endpoint, le claim nonce est absent : seul iat limite le rejeu.", "iss est omis (accès anonyme pré-autorisé)."],
     reqCode: `// header
 {
   "typ": "openid4vci-proof+jwt",
@@ -226,15 +191,15 @@ grant_type=authorization_code
   "jwk": { "kty": "EC", "crv": "P-256", "x": "TCAER19Zvu3OHF4j4W4vfSVoHIP1ILilDls7vCeGemc", "y": "ZxjiWWbZMQGHVWKVQ4hbSIirsVfuecCE6t4jT9F2HZQ" }
 }
 // payload
-{${pre ? "" : `\n  "iss": "wallet-dev",`}
+{
   "aud": "${ISS}",
-  "iat": 1762716000
+  "iat": 1762783200
 }` });
-  S.push({ phase: "Émission", from: "W", to: "CI", req: "POST /credential", res: "200 credentials", title: "Requête credential",
-    desc: "Le wallet présente l'access token et la preuve. L'émetteur vérifie la signature, l'audience et iat, puis émet l'attestation liée à la clé (champ cnf).",
-    notes: ["C'est le seul endpoint propre à OpenID4VCI qui soit obligatoire.", "Retirés : nonce, deferred_credential, notification, chiffrement de la réponse."],
+  S.push({ phase: "Émission", from: "W", to: "CI", req: "POST /credential", res: "200 credential", title: "Émission de l'attestation de compte",
+    desc: "L'application vérifie le jeton et la preuve, puis émet une attestation contenant l'identifiant du compte, liée à la clé du wallet. Le wallet la stocke.",
+    notes: ["Préférer un identifiant aléatoire dédié au wallet plutôt que l'identifiant interne du compte : révocable et sans fuite d'information.", "L'application garde la correspondance identifiant ↔ compte."],
     reqCode: `POST /credential HTTP/1.1
-Host: issuer.example.eu
+Host: app.example.fr
 Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
 
@@ -247,19 +212,51 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
     resCode: `HTTP/1.1 200 OK
 {
   "credentials": [{
-    "credential": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImRjK3NkLWp3dCJ9...~WyJzYWx0IiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0~"
+    "credential": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImRjK3NkLWp3dCJ9...~"
   }]
+}
+
+// payload du SD-JWT émis
+{
+  "iss": "${ISS}",
+  "vct": "${ISS}/vct/compte",
+  "account_id": "wlt_8Kq2vXr4Tn",
+  "iat": 1762783205,
+  "cnf": { "jwk": { "kty": "EC", "crv": "P-256", "x": "TCAER19Z...", "y": "ZxjiWWbZ..." } }
+}` });
+  S.push({ phase: "Plus tard : connexion (OpenID4VP)", from: "CI", to: "W", req: "Authorization Request", title: "Demande de présentation",
+    desc: "Hors OpenID4VCI. Lors d'une connexion ultérieure, l'application, devenue verifier, demande l'attestation de compte via OpenID4VP.",
+    notes: ["Le nonce de la requête est ici indispensable : c'est lui qui empêche de rejouer une ancienne présentation."],
+    reqCode: `openid4vp://?client_id=x509_san_dns:app.example.fr
+&request_uri=https://app.example.fr/vp/request/9d1c
+
+// requête signée (extrait)
+{
+  "response_type": "vp_token",
+  "nonce": "n-0S6_WzA2Mj",
+  "dcql_query": {
+    "credentials": [{
+      "id": "compte",
+      "format": "dc+sd-jwt",
+      "meta": { "vct_values": ["${ISS}/vct/compte"] },
+      "claims": [{ "path": ["account_id"] }]
+    }]
+  }
+}` });
+  S.push({ phase: "Plus tard : connexion (OpenID4VP)", from: "W", to: "CI", req: "POST vp_token", res: "session ouverte", title: "Présentation et identification",
+    desc: "Le wallet présente l'attestation avec un Key Binding JWT signé par la clé enregistrée à l'enrôlement. L'application vérifie la signature, le nonce et la clé, retrouve le compte par account_id et ouvre la session.",
+    notes: ["La vérification du KB-JWT contre cnf est ce qui prouve que c'est bien le wallet enrôlé."],
+    reqCode: `POST /vp/response HTTP/1.1
+Host: app.example.fr
+Content-Type: application/x-www-form-urlencoded
+
+vp_token={"compte":["eyJhbGciOiJFUzI1NiIs...~eyJ0eXAiOiJrYitqd3Qi..."]}
+&state=...`,
+    resCode: `HTTP/1.1 200 OK
+{
+  "redirect_uri": "https://app.example.fr/accueil#session=..."
 }` });
   return S;
-
-  function tokenRes() {
-    return `HTTP/1.1 200 OK
-{
-  "access_token": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 3600
-}`;
-  }
 }
 
 /* ---------- état ---------- */
@@ -325,7 +322,7 @@ function drawSvg() {
   // en-têtes d'acteurs (au-dessus)
   for (const k in ACTORS) {
     const a = ACTORS[k], g = el("g", { class: "actor" }, svg);
-    el("rect", { x: a.x - 72, y: 12, width: 144, height: 38, rx: 8, fill: "var(--surface)", stroke: color(k), "stroke-width": 2 }, g);
+    el("rect", { x: a.x - 86, y: 12, width: 172, height: 38, rx: 8, fill: "var(--surface)", stroke: color(k), "stroke-width": 2 }, g);
     el("text", { x: a.x, y: 36, "text-anchor": "middle", style: `fill:${color(k)}` }, g, a.name);
   }
   svg._rows = rows;
@@ -406,7 +403,7 @@ function go(i) {
 }
 
 function rebuild() {
-  stop(); steps = buildSteps(grant); drawSvg(); go(0);
+  stop(); steps = buildSteps(); drawSvg(); go(0);
 }
 function tick() {
   if (cur >= steps.length - 1) { stop(); return; }
@@ -425,14 +422,6 @@ document.getElementById("play").onclick = () => playing ? stop() : start();
 document.getElementById("next").onclick = () => { stop(); go(cur + 1); };
 document.getElementById("prev").onclick = () => { stop(); go(cur - 1); };
 document.getElementById("reset").onclick = () => { stop(); go(0); start(); };
-for (const [id, g] of [["g-pre", "pre"], ["g-auth", "auth"]]) {
-  document.getElementById(id).onclick = () => {
-    grant = g;
-    document.getElementById("g-pre").setAttribute("aria-pressed", g === "pre");
-    document.getElementById("g-auth").setAttribute("aria-pressed", g === "auth");
-    rebuild();
-  };
-}
 document.addEventListener("keydown", e => {
   if (e.target.closest("input, button")) { if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; }
   if (e.key === "ArrowRight") { stop(); go(cur + 1); }
